@@ -7,3 +7,14 @@ target/
 *.iml
 ### Logs ###
 *.log
+.idea/
+*.iml
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+# HTTP client
+*.http

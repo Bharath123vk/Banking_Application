@@ -6,24 +6,38 @@ import com.banking.model.Account;
 import com.banking.model.Transaction;
 import com.banking.model.TransactionStatus;
 import com.banking.model.TransactionType;
+import com.banking.repository.AccountRepository;
 import com.banking.repository.TransactionRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
-@Slf4j
 public class TransactionService {
 
+    private static final Logger log = LoggerFactory.getLogger(TransactionService.class);
+
     private final AccountService accountService;
+    private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
     private final AlertService alertService;
+
+    public TransactionService(AccountService accountService,
+                              AccountRepository accountRepository,
+                              TransactionRepository transactionRepository,
+                              AlertService alertService) {
+        this.accountService = accountService;
+        this.accountRepository = accountRepository;
+        this.transactionRepository = transactionRepository;
+        this.alertService = alertService;
+    }
 
     @Transactional
     public Transaction deposit(String accountNumber, BigDecimal amount, String description) {
@@ -34,14 +48,14 @@ public class TransactionService {
         BigDecimal balanceBefore = account.getBalance();
         account.setBalance(balanceBefore.add(amount));
 
+        // For deposits, the target is the account itself
         Transaction transaction = buildTransaction(account, amount, balanceBefore, account.getBalance(),
-                TransactionType.DEPOSIT, TransactionStatus.SUCCESS, description);
+                TransactionType.DEPOSIT, TransactionStatus.SUCCESS, description, accountNumber);
 
-        account.getTransactions().add(transaction);
-        log.info("Deposit of {} successful for account {}", amount, accountNumber);
-
+        transactionRepository.save(transaction);
+        log.info("Deposit successful for account {}", accountNumber);
         alertService.checkAndAlert(account);
-        return transactionRepository.save(transaction);
+        return transaction;
     }
 
     @Transactional
@@ -51,77 +65,87 @@ public class TransactionService {
         accountService.validateActiveAccount(account);
 
         BigDecimal balanceBefore = account.getBalance();
-
         if (balanceBefore.compareTo(amount) < 0) {
             Transaction failedTx = buildTransaction(account, amount, balanceBefore, balanceBefore,
-                    TransactionType.WITHDRAWAL, TransactionStatus.FAILED, "Insufficient funds");
+                    TransactionType.WITHDRAWAL, TransactionStatus.FAILED, "Insufficient funds", accountNumber);
             transactionRepository.save(failedTx);
-            throw new InsufficientFundsException("Insufficient funds for withdrawal in account: " + accountNumber);
+            throw new InsufficientFundsException("Insufficient funds in account: " + accountNumber);
         }
 
         account.setBalance(balanceBefore.subtract(amount));
-
         Transaction transaction = buildTransaction(account, amount, balanceBefore, account.getBalance(),
-                TransactionType.WITHDRAWAL, TransactionStatus.SUCCESS, description);
+                TransactionType.WITHDRAWAL, TransactionStatus.SUCCESS, description, accountNumber);
 
-        account.getTransactions().add(transaction);
-        log.info("Withdrawal of {} successful for account {}", amount, accountNumber);
-
+        transactionRepository.save(transaction);
+        log.info("Withdrawal successful for account {}", accountNumber);
         alertService.checkAndAlert(account);
-        return transactionRepository.save(transaction);
+        return transaction;
     }
 
     @Transactional
-    public List<Transaction> transfer(String fromAccountNumber, String toAccountNumber, BigDecimal amount,
-            String description) {
+    public List<Transaction> transfer(String sourceAccountNumber, String destinationAccountNumber, BigDecimal amount,
+                                      String description) {
         validateAmount(amount);
 
-        if (fromAccountNumber.equals(toAccountNumber)) {
+        if (sourceAccountNumber.equals(destinationAccountNumber)) {
             throw new IllegalArgumentException("Cannot transfer to the same account");
         }
 
-        Account fromAccount = accountService.getAccount(fromAccountNumber);
-        Account toAccount = accountService.getAccount(toAccountNumber);
+        // 1. SOURCE: Must exist (we use accountService here because the sender MUST be our user)
+        Account sourceAccount = accountService.getAccount(sourceAccountNumber);
+        accountService.validateActiveAccount(sourceAccount);
 
-        accountService.validateActiveAccount(fromAccount);
-        accountService.validateActiveAccount(toAccount);
+        BigDecimal sourceBalanceBefore = sourceAccount.getBalance();
 
-        BigDecimal fromBalanceBefore = fromAccount.getBalance();
-
-        if (fromBalanceBefore.compareTo(amount) < 0) {
-            Transaction failedTx = buildTransaction(fromAccount, amount, fromBalanceBefore, fromBalanceBefore,
-                    TransactionType.TRANSFER_OUT, TransactionStatus.FAILED, "Insufficient funds for transfer");
+        // 2. CHECK BALANCE
+        if (sourceBalanceBefore.compareTo(amount) < 0) {
+            Transaction failedTx = buildTransaction(sourceAccount, amount, sourceBalanceBefore, sourceBalanceBefore,
+                    TransactionType.TRANSFER_OUT, TransactionStatus.FAILED, "Insufficient funds", destinationAccountNumber);
             transactionRepository.save(failedTx);
-            throw new InsufficientFundsException("Insufficient funds for transfer from account: " + fromAccountNumber);
+            throw new InsufficientFundsException("Insufficient balance for this transfer.");
         }
 
-        BigDecimal toBalanceBefore = toAccount.getBalance();
+        // 3. DEDUCT FROM SOURCE
+        sourceAccount.setBalance(sourceBalanceBefore.subtract(amount));
 
-        // Update balances
-        fromAccount.setBalance(fromBalanceBefore.subtract(amount));
-        toAccount.setBalance(toBalanceBefore.add(amount));
-
-        // Create transaction records
-        Transaction outTx = buildTransaction(fromAccount, amount, fromBalanceBefore, fromAccount.getBalance(),
+        // Create the record for the sender
+        Transaction outTx = buildTransaction(sourceAccount, amount, sourceBalanceBefore, sourceAccount.getBalance(),
                 TransactionType.TRANSFER_OUT, TransactionStatus.SUCCESS,
-                description != null ? description : "Transfer to " + toAccountNumber);
+                (description != null && !description.isEmpty()) ? description : "Transfer to " + destinationAccountNumber,
+                destinationAccountNumber);
 
-        Transaction inTx = buildTransaction(toAccount, amount, toBalanceBefore, toAccount.getBalance(),
-                TransactionType.TRANSFER_IN, TransactionStatus.SUCCESS,
-                description != null ? description : "Transfer from " + fromAccountNumber);
+        List<Transaction> recordedTransactions = new ArrayList<>();
+        recordedTransactions.add(transactionRepository.save(outTx));
 
-        fromAccount.getTransactions().add(outTx);
-        toAccount.getTransactions().add(inTx);
+        // 4. DESTINATION: "Safe Lookup" (This is the fix!)
+        // We use accountRepository directly so it DOES NOT throw a 404 if missing
+        Optional<Account> destinationAccountOpt = accountRepository.findByAccountNumber(destinationAccountNumber);
 
-        log.info("Transfer of {} from {} to {} successful", amount, fromAccountNumber, toAccountNumber);
+        if (destinationAccountOpt.isPresent()) {
+            Account destAccount = destinationAccountOpt.get();
+            BigDecimal destBalanceBefore = destAccount.getBalance();
 
-        alertService.checkAndAlert(fromAccount);
-        alertService.checkAndAlert(toAccount);
+            // Update recipient balance
+            destAccount.setBalance(destBalanceBefore.add(amount));
 
-        transactionRepository.save(outTx);
-        transactionRepository.save(inTx);
+            // Create record for recipient
+            Transaction inTx = buildTransaction(destAccount, amount, destBalanceBefore, destAccount.getBalance(),
+                    TransactionType.TRANSFER_IN, TransactionStatus.SUCCESS,
+                    "Received from " + sourceAccountNumber,
+                    sourceAccountNumber);
 
-        return List.of(outTx, inTx);
+            recordedTransactions.add(transactionRepository.save(inTx));
+            alertService.checkAndAlert(destAccount);
+            log.info("Internal Transfer: Recipient {} updated.", destinationAccountNumber);
+        } else {
+            // Destination not in our DB? No problem. No 404 thrown.
+            log.info("External Transfer: {} is not in our system. Processing as external payment.", destinationAccountNumber);
+        }
+
+        log.info("Transfer successful from {} to {}", sourceAccountNumber, destinationAccountNumber);
+        alertService.checkAndAlert(sourceAccount);
+
+        return recordedTransactions;
     }
 
     public List<Transaction> getAllTransactions() {
@@ -129,7 +153,6 @@ public class TransactionService {
     }
 
     public List<Transaction> getAccountTransactions(String accountNumber) {
-        accountService.getAccount(accountNumber); // Verify existence
         return transactionRepository.findByAccountAccountNumberOrderByTransactionDateDesc(accountNumber);
     }
 
@@ -140,7 +163,7 @@ public class TransactionService {
     }
 
     private Transaction buildTransaction(Account account, BigDecimal amount, BigDecimal before, BigDecimal after,
-            TransactionType type, TransactionStatus status, String description) {
+                                         TransactionType type, TransactionStatus status, String description, String targetAccount) {
         return Transaction.builder()
                 .referenceNumber("TXN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .account(account)
@@ -150,6 +173,7 @@ public class TransactionService {
                 .transactionType(type)
                 .transactionStatus(status)
                 .description(description)
+                .targetAccountNumber(targetAccount) // Linked to the new model field
                 .build();
     }
 }

@@ -5,7 +5,6 @@ import com.banking.dto.TransferRequest;
 import com.banking.model.Transaction;
 import com.banking.service.TransactionService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,10 +12,15 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/transactions")
-@RequiredArgsConstructor
+// Global CORS is handled in BankingSimulatorApplication.java, so no @CrossOrigin needed here
 public class TransactionController {
 
     private final TransactionService transactionService;
+
+    // Manual Constructor (Replaces @RequiredArgsConstructor)
+    public TransactionController(TransactionService transactionService) {
+        this.transactionService = transactionService;
+    }
 
     @PostMapping("/deposit")
     public ResponseEntity<Transaction> makeDeposit(@Valid @RequestBody TransactionRequest req) {
@@ -34,8 +38,13 @@ public class TransactionController {
 
     @PostMapping("/transfer")
     public ResponseEntity<List<Transaction>> makeTransfer(@Valid @RequestBody TransferRequest req) {
+        // FIXED: Updated to use getSourceAccountNumber and getDestinationAccountNumber
         List<Transaction> transactions = transactionService.transfer(
-                req.getFromAccountNumber(), req.getToAccountNumber(), req.getAmount(), req.getDescription());
+                req.getSourceAccountNumber(),
+                req.getDestinationAccountNumber(),
+                req.getAmount(),
+                req.getDescription()
+        );
         return ResponseEntity.ok(transactions);
     }
 

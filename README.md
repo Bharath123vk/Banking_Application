@@ -45,4 +45,4 @@ A professional-grade Banking Transaction Simulator built with **Spring Boot** an
 - **Frontend**: React 18, TypeScript, Vite, TanStack Query, Shadcn/UI, Lucide Icons.
 
 ---
-**Developed by Team 4 (Batch 13 from Infosys Virtual Internship 6.0**
+**Developed by Team 4 (Batch 13 from Infosys Virtual Internship 6.0)**

@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -124,13 +126,13 @@ public class TransactionService {
         return List.of(outTx, inTx);
     }
 
-    public List<Transaction> getAllTransactions() {
-        return transactionRepository.findAll();
+    public Page<Transaction> getAllTransactions(Pageable pageable) {
+        return transactionRepository.findAll(pageable);
     }
 
-    public List<Transaction> getAccountTransactions(String accountNumber) {
+    public Page<Transaction> getAccountTransactions(String accountNumber, Pageable pageable) {
         accountService.getAccount(accountNumber); // Verify existence
-        return transactionRepository.findByAccountAccountNumberOrderByTransactionDateDesc(accountNumber);
+        return transactionRepository.findByAccountAccountNumberOrderByTransactionDateDesc(accountNumber, pageable);
     }
 
     private void validateAmount(BigDecimal amount) {

@@ -6,9 +6,12 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
-    List<Transaction> findByAccountAccountNumberOrderByTransactionDateDesc(String accountNumber);
+    Page<Transaction> findByAccountAccountNumberOrderByTransactionDateDesc(String accountNumber, Pageable pageable);
 
 }

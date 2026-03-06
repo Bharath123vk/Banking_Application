@@ -59,5 +59,6 @@ The app will typically be available at `http://localhost:8080` (configured in `v
 ## 🔗 API Integration
 The frontend communicates with the Spring Boot backend at `http://localhost:8081/api`.  
 ⚠️ Ensure the backend is running before performing transactions.
+
 ---
 ```

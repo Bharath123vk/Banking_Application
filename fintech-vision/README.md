@@ -1,73 +1,64 @@
-# Welcome to your Lovable project
+```markdown
+# 🎨 Vault Bank - Frontend (Fintech Vision)
 
-## Project info
+This is the React-based banking dashboard for the Vault Bank Simulator. It provides a real-time interface for account management, transaction tracking, and financial reporting.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+---
 
-## How can I edit this code?
+## 🛠️ Tech Stack
+- **Framework**: [React 18](https://reactjs.org/) with [Vite](https://vitejs.dev/)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **UI Components**: [shadcn/ui](https://ui.shadcn.com/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **State & Data Fetching**: [TanStack Query (React Query)](https://tanstack.com/query/latest)
+- **Charts**: [Recharts](https://recharts.org/)
+- **Animations**: [Framer Motion](https://www.framer.com/motion/)
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## 🚀 Local Development
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18.0 or higher)
+- [npm](https://www.npmjs.com/)
 
-Changes made via Lovable will be committed automatically to this repo.
+### Setup Instructions
+1. Navigate to the directory:
+   ```sh
+   cd fintech-vision
+   ```
+2. Install dependencies:
+   ```sh
+   npm install
+   ```
+3. Start the development server:
+   ```sh
+   npm run dev
+   ```
 
-**Use your preferred IDE**
+The app will typically be available at `http://localhost:8080` (configured in `vite.config.ts`).
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+---
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 📜 Scripts
+- `npm run dev` – Start development server
+- `npm run build` – Build for production
+- `npm run preview` – Preview production build
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 🏗️ Key Modules
+- **`src/pages/Dashboard.tsx`**: Main overview with balance charts and account status.
+- **`src/pages/Payments.tsx`**: Unified interface for Deposits, Withdrawals, and Transfers.
+- **`src/pages/Reports.tsx`**: Hub for generating and downloading PDF statements.
+- **`src/lib/api.ts`**: Centralized Axios/Fetch configuration for backend communication.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+---
 
-# Step 3: Install the necessary dependencies.
-npm i
+## 🔗 API Integration
+The frontend communicates with the Spring Boot backend at `http://localhost:8081/api`.  
+⚠️ Ensure the backend is running before performing transactions.
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+---
 ```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)

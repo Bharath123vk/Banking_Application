@@ -37,7 +37,7 @@ public class Account {
 
     @Email(message = "Invalid email format")
     @NotBlank(message = "Email is required")
-    @Column(unique = true, nullable = false) // Added unique constraint for email
+    @Column(unique = true, nullable = false)
     private String email;
 
     @Enumerated(EnumType.STRING)
@@ -50,8 +50,14 @@ public class Account {
     @Column(nullable = false)
     private boolean active = true;
 
+    // --- NEW PROFILE FIELDS ---
+    private String phoneNumber;
+
+    private String address;
+
+    private String occupation; // e.g., Salaried, Business, Student
+
     @OneToMany(mappedBy = "account", cascade = CascadeType.ALL, orphanRemoval = true)
-    // Prevents infinite recursion during JSON serialization
     @JsonIgnoreProperties("account")
     private List<Transaction> transactions = new ArrayList<>();
 
@@ -65,7 +71,8 @@ public class Account {
     public Account() {}
 
     public Account(Long id, String accountNumber, String holderName, String email,
-                   AccountType accountType, BigDecimal balance, boolean active) {
+                   AccountType accountType, BigDecimal balance, boolean active,
+                   String phoneNumber, String address, String occupation) {
         this.id = id;
         this.accountNumber = accountNumber;
         this.holderName = holderName;
@@ -73,6 +80,9 @@ public class Account {
         this.accountType = accountType;
         this.balance = balance;
         this.active = active;
+        this.phoneNumber = phoneNumber;
+        this.address = address;
+        this.occupation = occupation;
     }
 
     // --- MANUAL BUILDER PATTERN ---
@@ -87,6 +97,9 @@ public class Account {
         private AccountType accountType;
         private BigDecimal balance;
         private boolean active = true;
+        private String phoneNumber;
+        private String address;
+        private String occupation;
 
         public AccountBuilder accountNumber(String accountNumber) { this.accountNumber = accountNumber; return this; }
         public AccountBuilder holderName(String holderName) { this.holderName = holderName; return this; }
@@ -94,6 +107,9 @@ public class Account {
         public AccountBuilder accountType(AccountType accountType) { this.accountType = accountType; return this; }
         public AccountBuilder balance(BigDecimal balance) { this.balance = balance; return this; }
         public AccountBuilder active(boolean active) { this.active = active; return this; }
+        public AccountBuilder phoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; return this; }
+        public AccountBuilder address(String address) { this.address = address; return this; }
+        public AccountBuilder occupation(String occupation) { this.occupation = occupation; return this; }
 
         public Account build() {
             Account acc = new Account();
@@ -103,6 +119,9 @@ public class Account {
             acc.setAccountType(this.accountType);
             acc.setBalance(this.balance);
             acc.setActive(this.active);
+            acc.setPhoneNumber(this.phoneNumber);
+            acc.setAddress(this.address);
+            acc.setOccupation(this.occupation);
             return acc;
         }
     }
@@ -128,6 +147,15 @@ public class Account {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public String getPhoneNumber() { return phoneNumber; }
+    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
+
+    public String getOccupation() { return occupation; }
+    public void setOccupation(String occupation) { this.occupation = occupation; }
 
     public List<Transaction> getTransactions() { return transactions; }
     public void setTransactions(List<Transaction> transactions) { this.transactions = transactions; }

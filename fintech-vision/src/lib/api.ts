@@ -11,19 +11,24 @@ export interface Account {
   createdAt: string;
   updatedAt: string;
   transactions: Transaction[];
+  // NEW PROFILE FIELDS
+  phoneNumber?: string;
+  address?: string;
+  occupation?: string;
+  profileAvatar?: string;
 }
 
 export interface Transaction {
   id: number;
-  referenceNumber: string; // Matches Java model referenceNumber
-  transactionType: "DEPOSIT" | "WITHDRAWAL" | "TRANSFER_IN" | "TRANSFER_OUT"; // Matches Java enum
+  referenceNumber: string;
+  transactionType: "DEPOSIT" | "WITHDRAWAL" | "TRANSFER_IN" | "TRANSFER_OUT";
   amount: number;
   balanceBefore: number;
   balanceAfter: number;
   description: string;
-  transactionDate: string; // Matches Java model transactionDate
+  transactionDate: string;
   transactionStatus: "SUCCESS" | "FAILED";
-  targetAccountNumber?: string; // Matches Java model field for PhonePe-style transfers
+  targetAccountNumber?: string;
 }
 
 export interface SignUpData {
@@ -50,6 +55,15 @@ export interface TransferData {
   description: string;
 }
 
+// UPDATED: Included all the new profile fields
+export interface UpdateProfileData {
+  holderName?: string;
+  email?: string;
+  phoneNumber?: string;
+  address?: string;
+  occupation?: string;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -59,8 +73,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const error = await res.json().catch(() => ({ message: res.statusText }));
     throw new Error(error.message || `Request failed: ${res.status}`);
   }
-  // For standard API calls, we return JSON. 
-  // For file downloads, we bypass this and use a direct link in the component.
   return res.json();
 }
 
@@ -71,18 +83,26 @@ export const api = {
   createAccount: (data: SignUpData) => request<Account>("/accounts", { method: "POST", body: JSON.stringify(data) }),
   activateAccount: (accountNumber: string) => request<Account>(`/accounts/${accountNumber}/activate`, { method: "PUT" }),
   deactivateAccount: (accountNumber: string) => request<Account>(`/accounts/${accountNumber}/deactivate`, { method: "PUT" }),
+  
+  // Profile Update
+  updateProfile: (accountNumber: string, data: UpdateProfileData) => 
+    request<Account>(`/accounts/${accountNumber}/profile`, { 
+      method: "PUT", 
+      body: JSON.stringify(data) 
+    }),
 
   // Transactions
   deposit: (data: DepositData) => request<Transaction>("/transactions/deposit", { method: "POST", body: JSON.stringify(data) }),
   withdraw: (data: WithdrawData) => request<Transaction>("/transactions/withdraw", { method: "POST", body: JSON.stringify(data) }),
   transfer: (data: TransferData) => request<Transaction>("/transactions/transfer", { method: "POST", body: JSON.stringify(data) }),
   
-  // Dynamic path for account history
   getTransactions: (accountNumber?: string) => 
     request<Transaction[]>(accountNumber ? `/transactions/account/${accountNumber}` : "/transactions"),
 
-  // Reports - All endpoints now match the @PostMapping in ReportController
-  getReports: () => request<string[]>("/reports/list"),
+  // Reports
+ // Inside api object in api.ts
+getReports: (accountNumber?: string) => 
+  request<string[]>(`/reports/list${accountNumber ? `?accountNumber=${accountNumber}` : ''}`),
   generateAccountStatement: (accountNumber: string) => 
     request<{message: string, filename: string}>(`/reports/account-statement/${accountNumber}`, { method: "POST" }),
   generateBankSummary: () => 

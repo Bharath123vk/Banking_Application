@@ -3,7 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { formatINR } from "@/lib/format";
 import { useQuery } from "@tanstack/react-query";
-import { Wallet, CreditCard, TrendingUp, AlertTriangle, RefreshCw, Power } from "lucide-react";
+import { Wallet, CreditCard, TrendingUp, AlertTriangle, RefreshCw, Power, Briefcase, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -35,11 +35,7 @@ export default function Dashboard() {
   if (!account) return null;
 
   const isLowBalance = account.balance < LOW_BALANCE_THRESHOLD;
-  const isAccountActive = account.active; // Using 'active' boolean from api.ts
-
-  if (isLowBalance) {
-    console.warn(`[VaultBank Balance Alert] Account ${account.accountNumber} balance is ₹${account.balance.toFixed(2)}, below threshold ₹${LOW_BALANCE_THRESHOLD.toFixed(2)}.`);
-  }
+  const isAccountActive = account.active;
 
   const handleToggleStatus = async () => {
     try {
@@ -53,6 +49,7 @@ export default function Dashboard() {
     }
   };
 
+  // FIXED: Mapping to correct transactionDate field
   const balanceTrend = transactions.length > 0
     ? transactions
         .slice()
@@ -71,20 +68,27 @@ export default function Dashboard() {
   }, {});
 
   const typeData = Object.entries(typeCounts).length > 0
-    ? Object.entries(typeCounts).map(([name, count]) => ({ name, count }))
+    ? Object.entries(typeCounts).map(([name, count]) => ({ name: name.replace('_', ' '), count }))
     : [{ name: "Deposit", count: 0 }, { name: "Withdraw", count: 0 }, { name: "Transfer", count: 0 }];
 
   const cards = [
     { label: "Account Number", value: account.accountNumber, icon: CreditCard, accent: false },
     { label: "Current Balance", value: formatINR(account.balance), icon: Wallet, accent: true },
-    { label: "Account Type", value: account.accountType, icon: TrendingUp, accent: false },
+    { label: "Employment Type", value: account.occupation || "Not Specified", icon: Briefcase, accent: false },
   ];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Welcome, {account.holderName}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="font-display text-2xl font-bold text-foreground">Welcome, {account.holderName}</h1>
+            {account.occupation && (
+               <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">
+                 {account.occupation}
+               </span>
+            )}
+          </div>
           <p className="text-muted-foreground">Here's your financial overview.</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => { refetch(); toast.info("Refreshing..."); }} disabled={isLoading}>
@@ -117,42 +121,37 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="md:col-span-2 rounded-xl border border-border bg-card p-6 shadow-card">
+        <motion.div className="md:col-span-2 rounded-xl border border-border bg-card p-6 shadow-card">
           <h3 className="font-display text-lg font-semibold text-foreground mb-4">Balance Trend</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={balanceTrend} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <AreaChart data={balanceTrend}>
                 <defs>
                   <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v.toLocaleString("en-IN")}`} />
-                <Tooltip
-                  contentStyle={{ borderRadius: "0.75rem", border: "1px solid #e2e8f0" }}
-                  formatter={(value: number) => [formatINR(value), "Balance"]}
-                />
-                <Area type="monotone" dataKey="balance" stroke="#16a34a" strokeWidth={2.5} fill="url(#balanceGradient)" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} tickFormatter={(v) => `₹${v/1000}k`} />
+                <Tooltip formatter={(val: number) => formatINR(val)} />
+                <Area type="monotone" dataKey="balance" stroke="#16a34a" fill="url(#balanceGradient)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-          className="rounded-xl border border-border bg-card p-6 shadow-card">
-          <h3 className="font-display text-lg font-semibold text-foreground mb-4">Transaction Types</h3>
+        <motion.div className="rounded-xl border border-border bg-card p-6 shadow-card">
+          <h3 className="font-display text-lg font-semibold text-foreground mb-4">Activity Mix</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={typeData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={{ borderRadius: "0.75rem", border: "1px solid #e2e8f0" }} />
-                <Bar dataKey="count" fill="#1e3a8a" radius={[6, 6, 0, 0]} />
+              <BarChart data={typeData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Bar dataKey="count" fill="#1e3a8a" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -162,20 +161,17 @@ export default function Dashboard() {
       <div className="grid gap-6 md:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-6 shadow-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display text-lg font-semibold text-foreground">Account Details</h3>
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              isAccountActive 
-                ? "bg-green-100 text-green-700" 
-                : "bg-red-100 text-red-700"
-            }`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${isAccountActive ? "bg-green-500" : "bg-red-500"}`} />
+            <h3 className="font-display text-lg font-semibold text-foreground">Contact & Details</h3>
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${isAccountActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
               {isAccountActive ? "Active" : "Deactivated"}
             </span>
           </div>
           <div className="space-y-3">
             {[
-              { label: "Email", value: account.email },
-              { label: "Created", value: account.createdAt ? new Date(account.createdAt).toLocaleDateString("en-IN") : "N/A" },
+              { label: "Email", value: account.email, icon: Wallet },
+              { label: "Phone", value: account.phoneNumber || "Not Added" },
+              { label: "Work", value: account.occupation || "Not Specified" },
+              { label: "Joined", value: account.createdAt ? new Date(account.createdAt).toLocaleDateString("en-IN") : "N/A" },
             ].map((row) => (
               <div key={row.label} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                 <span className="text-sm text-muted-foreground">{row.label}</span>
@@ -186,24 +182,25 @@ export default function Dashboard() {
           <Button
             variant={isAccountActive ? "destructive" : "default"}
             size="sm"
-            className="w-full mt-4"
+            className="w-full mt-4 h-10"
             onClick={handleToggleStatus}
           >
             <Power className="mr-2 h-4 w-4" />
             {isAccountActive ? "Deactivate Account" : "Activate Account"}
           </Button>
         </div>
+
         <div className="rounded-xl border border-border bg-card p-6 shadow-card">
           <h3 className="font-display text-lg font-semibold text-foreground mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "Deposit", href: "/payments?tab=deposit" },
+              { label: "Send Money", href: "/payments?tab=transfer" },
+              { label: "Deposit Cash", href: "/payments?tab=deposit" },
               { label: "Withdraw", href: "/payments?tab=withdraw" },
-              { label: "Transfer", href: "/payments?tab=transfer" },
-              { label: "View History", href: "/history" },
+              { label: "Profile", href: "/profile" },
             ].map((action) => (
               <a key={action.label} href={action.href}
-                className="flex items-center justify-center rounded-lg border border-border bg-muted/50 p-3 text-sm font-medium text-foreground hover:bg-slate-100 transition-all">
+                className="flex items-center justify-center rounded-lg border border-border bg-muted/30 p-4 text-sm font-semibold text-foreground hover:bg-primary/5 hover:border-primary/20 transition-all">
                 {action.label}
               </a>
             ))}

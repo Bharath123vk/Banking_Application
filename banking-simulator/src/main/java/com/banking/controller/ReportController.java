@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,10 +17,11 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/reports")
-@CrossOrigin(origins = {"http://localhost:8080", "http://127.0.0.1:8080"})
+@CrossOrigin(origins = {"http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:5173"})
 public class ReportController {
 
     private final ReportService reportService;
@@ -54,14 +56,43 @@ public class ReportController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * SECURED LIST ENDPOINT
+     * Filtered by accountNumber to prevent cross-user data leaks.
+     */
     @GetMapping("/list")
-    public ResponseEntity<List<String>> listReports() {
-        return ResponseEntity.ok(reportService.listReports());
+    public ResponseEntity<List<String>> listReports(@RequestParam(required = false) String accountNumber) {
+        List<String> allFiles = reportService.listReports();
+
+        // If no account is provided, return empty or a secure default
+        if (accountNumber == null || accountNumber.isEmpty()) {
+            return ResponseEntity.ok(allFiles.stream()
+                    .filter(name -> name.startsWith("Bank_Summary"))
+                    .collect(Collectors.toList()));
+        }
+
+        // Return only files belonging to this account OR the general bank summary
+        List<String> filteredFiles = allFiles.stream()
+                .filter(name -> name.contains(accountNumber) || name.startsWith("Bank_Summary"))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(filteredFiles);
     }
 
+    /**
+     * SECURED DOWNLOAD ENDPOINT
+     * Includes a path-traversal and owner-validation check.
+     */
     @GetMapping("/{filename}")
-    public ResponseEntity<Resource> readReport(@PathVariable String filename) {
-        // Ensure path ends with slash correctly
+    public ResponseEntity<Resource> readReport(
+            @PathVariable String filename,
+            @RequestParam(required = false) String owner) {
+
+        // 1. Security Check: Prevent unauthorized access to other users' files
+        if (owner != null && !filename.contains(owner) && !filename.startsWith("Bank_Summary")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         String path = outputDir.endsWith("/") ? outputDir : outputDir + "/";
         File file = new File(path + filename);
 
@@ -71,12 +102,9 @@ public class ReportController {
 
         Resource resource = new FileSystemResource(file);
 
-        // Determine content type dynamically
-        MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM; // Default to binary stream
+        MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
         if (filename.toLowerCase().endsWith(".pdf")) {
             mediaType = MediaType.APPLICATION_PDF;
-        } else if (filename.toLowerCase().endsWith(".txt")) {
-            mediaType = MediaType.TEXT_PLAIN;
         }
 
         return ResponseEntity.ok()

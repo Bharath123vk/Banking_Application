@@ -26,6 +26,16 @@ public class AccountService {
         this.accountRepository = accountRepository;
     }
 
+    /**
+     * UPDATED: Added method to persist profile changes.
+     * Used by AccountController.updateProfile
+     */
+    @Transactional
+    public Account updateAccount(Account account) {
+        log.info("Updating profile details for Account: {}", account.getAccountNumber());
+        return accountRepository.save(account);
+    }
+
     @Transactional
     public Account createAccount(CreateAccountRequest req) {
         // 1. Check if email is already registered
@@ -103,7 +113,6 @@ public class AccountService {
             accNumber = "ACC" + number;
             attempts++;
             if (attempts > maxAttempts) {
-                // Fail-safe to prevent infinite loop in extreme cases
                 accNumber = "ACC" + System.currentTimeMillis();
                 break;
             }

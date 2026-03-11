@@ -12,9 +12,15 @@ export default function Reports() {
   const [generating, setGenerating] = useState(false);
 
   const { data: reports = [], refetch, isLoading } = useQuery({
-    queryKey: ["reports"],
-    queryFn: () => api.getReports(),
+    queryKey: ["reports", account?.accountNumber],
+    queryFn: () => api.getReports(account?.accountNumber),
+    enabled: !!account,
   });
+
+  const filteredReports = reports.filter(filename => 
+    filename.includes(account?.accountNumber || "EMPTY") || 
+    filename.startsWith("Bank_Summary")
+  );
 
   const handleGenerateStatement = async () => {
     if (!account) return;
@@ -46,11 +52,17 @@ export default function Reports() {
   };
 
   const handleDownload = (filename: string) => {
-    // We point directly to the filename endpoint
-    // This bypasses the JSON request helper and triggers the browser's PDF handler
-    const url = `http://localhost:8081/api/reports/${filename}`;
+    if (!account) return;
     
-    // Create a temporary anchor element to force download
+    // Frontend Security Guard
+    if (!filename.includes(account.accountNumber) && !filename.startsWith("Bank_Summary")) {
+      toast.error("Unauthorized access to this report.");
+      return;
+    }
+
+    // UPDATED: Passing 'owner' to match the new Backend Security logic in ReportController
+    const url = `http://localhost:8081/api/reports/${filename}?owner=${account.accountNumber}`;
+    
     const link = document.createElement("a");
     link.href = url;
     link.setAttribute("download", filename);
@@ -98,7 +110,7 @@ export default function Reports() {
 
       <div className="rounded-xl border border-border bg-card shadow-card">
         <div className="flex items-center justify-between border-b border-border p-4">
-          <h3 className="font-display font-semibold text-foreground">Available PDF Reports</h3>
+          <h3 className="font-display font-semibold text-foreground">Your PDF Reports</h3>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} /> Refresh List
           </Button>
@@ -109,11 +121,14 @@ export default function Reports() {
               <Loader2 className="h-8 w-8 animate-spin mb-2" />
               <p>Loading your reports...</p>
             </div>
-          ) : reports.length === 0 ? (
-            <p className="text-center text-muted-foreground py-12">No reports found. Generate one using the cards above.</p>
+          ) : filteredReports.length === 0 ? (
+            <div className="flex flex-col items-center py-12 text-muted-foreground">
+              <FileText className="h-10 w-10 mb-2 opacity-20" />
+              <p className="text-center">No reports found for your account.</p>
+            </div>
           ) : (
             <div className="space-y-2">
-              {[...reports].reverse().map((report, i) => (
+              {[...filteredReports].reverse().map((report, i) => (
                 <motion.div 
                   key={report} 
                   initial={{ opacity: 0, x: -10 }} 

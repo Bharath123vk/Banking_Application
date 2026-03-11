@@ -45,7 +45,7 @@ export default function Footer() {
             <ul className="space-y-2">
               <li className="text-sm text-primary-foreground/60">support@vaultbank.in</li>
               <li className="text-sm text-primary-foreground/60">+91 98765 43210</li>
-              <li className="text-sm text-primary-foreground/60">Bengaluru, Karnataka, India</li>
+              <li className="text-sm text-primary-foreground/60">Hyderabad, Telangana, India</li>
             </ul>
           </div>
         </div>

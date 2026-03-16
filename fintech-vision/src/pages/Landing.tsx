@@ -169,7 +169,7 @@ export default function Landing() {
             {[
               { icon: Mail, text: "support@vaultbank.in" },
               { icon: Phone, text: "+91 98765 43210" },
-              { icon: MapPin, text: "Bengaluru, Karnataka, India" },
+              { icon: MapPin, text: "Hyderabad, Telangana, India" },
             ].map((item, i) => (
               <motion.div key={item.text} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={i + 1}
                 className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-card">

@@ -1,4 +1,4 @@
-import { LayoutDashboard, ArrowLeftRight, History, FileText, LogOut, Globe } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, History, FileText, LogOut, Globe, User } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Profile", url: "/profile", icon: User }, // Added this
   { title: "Payments", url: "/payments", icon: ArrowLeftRight },
   { title: "History", url: "/history", icon: History },
   { title: "Reports", url: "/reports", icon: FileText },

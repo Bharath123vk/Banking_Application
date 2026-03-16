@@ -15,6 +15,7 @@ import Reports from "./pages/Reports";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import NotFound from "./pages/NotFound";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route element={<DashboardLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="/payments" element={<Payments />} />
               <Route path="/history" element={<TransactionHistory />} />
               <Route path="/reports" element={<Reports />} />

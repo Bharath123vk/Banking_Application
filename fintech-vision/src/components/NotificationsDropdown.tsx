@@ -3,15 +3,19 @@ import { Bell, AlertTriangle, ArrowDownLeft, ArrowUpRight, ArrowLeftRight } from
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import { api, Transaction } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { formatINR } from "@/lib/format";
 
 const LOW_BALANCE_THRESHOLD = 500;
 
+// Updated to use transactionType and lowercase comparison
 const typeIcon = (type: string) => {
-  if (type?.toLowerCase().includes("deposit")) return <ArrowDownLeft className="h-3.5 w-3.5 text-accent" />;
-  if (type?.toLowerCase().includes("withdraw")) return <ArrowUpRight className="h-3.5 w-3.5 text-destructive" />;
+  const t = type?.toLowerCase() || "";
+  if (t.includes("deposit") || t.includes("transfer_in")) 
+    return <ArrowDownLeft className="h-3.5 w-3.5 text-accent" />;
+  if (t.includes("withdraw") || t.includes("transfer_out")) 
+    return <ArrowUpRight className="h-3.5 w-3.5 text-destructive" />;
   return <ArrowLeftRight className="h-3.5 w-3.5 text-primary" />;
 };
 
@@ -26,9 +30,12 @@ export function NotificationsDropdown() {
     refetchInterval: 15000,
   });
 
+  // FIXED: Changed 'timestamp' to 'transactionDate'
   const recentTxns = transactions
     .slice()
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .sort((a, b) => 
+      new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime()
+    )
     .slice(0, 5);
 
   const isLowBalance = account && account.balance < LOW_BALANCE_THRESHOLD;
@@ -67,14 +74,18 @@ export function NotificationsDropdown() {
           ) : (
             recentTxns.map((t) => (
               <div key={t.id} className="flex items-start gap-3 border-b border-border/50 px-4 py-3 hover:bg-muted/30 transition-colors">
-                <div className="mt-0.5 shrink-0">{typeIcon(t.type)}</div>
+                {/* FIXED: Changed 't.type' to 't.transactionType' */}
+                <div className="mt-0.5 shrink-0">{typeIcon(t.transactionType)}</div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground capitalize">{t.type}</p>
+                  <p className="text-sm font-medium text-foreground capitalize">
+                    {t.transactionType.replace('_', ' ')}
+                  </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {formatINR(t.amount)} · {t.description || "No description"}
                   </p>
                   <p className="text-[10px] text-muted-foreground/70 mt-0.5">
-                    {t.timestamp ? new Date(t.timestamp).toLocaleString("en-IN") : "—"}
+                    {/* FIXED: Changed 't.timestamp' to 't.transactionDate' */}
+                    {t.transactionDate ? new Date(t.transactionDate).toLocaleString("en-IN") : "—"}
                   </p>
                 </div>
               </div>

@@ -89,6 +89,46 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip;
 
+function ChartIndicator({
+  color,
+  indicator = "dot",
+  className,
+}: {
+  color?: string;
+  indicator?: "line" | "dot" | "dashed";
+  className?: string;
+}) {
+  if (indicator === "line") {
+    return (
+      <svg
+        viewBox="0 0 4 16"
+        aria-hidden="true"
+        className={cn("h-2.5 w-1 shrink-0 overflow-visible", className)}
+      >
+        <path d="M2 1v14" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (indicator === "dashed") {
+    return (
+      <svg
+        viewBox="0 0 4 16"
+        aria-hidden="true"
+        className={cn("h-2.5 w-1 shrink-0 overflow-visible", className)}
+      >
+        <path d="M2 1v14" stroke={color} strokeWidth="2" strokeLinecap="round" strokeDasharray="3 2" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 10 10" aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0", className)}>
+      <rect x="1" y="1" width="8" height="8" rx="2" fill={color} />
+    </svg>
+  );
+}
+
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
@@ -181,19 +221,10 @@ const ChartTooltipContent = React.forwardRef<
                       <itemConfig.icon />
                     ) : (
                       !hideIndicator && (
-                        <div
-                          className={cn("shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]", {
-                            "h-2.5 w-2.5": indicator === "dot",
-                            "w-1": indicator === "line",
-                            "w-0 border-[1.5px] border-dashed bg-transparent": indicator === "dashed",
-                            "my-0.5": nestLabel && indicator === "dashed",
-                          })}
-                          style={
-                            {
-                              "--color-bg": indicatorColor,
-                              "--color-border": indicatorColor,
-                            } as React.CSSProperties
-                          }
+                        <ChartIndicator
+                          color={indicatorColor}
+                          indicator={indicator}
+                          className={cn(nestLabel && indicator === "dashed" && "my-0.5")}
                         />
                       )
                     )}
@@ -258,12 +289,7 @@ const ChartLegendContent = React.forwardRef<
             {itemConfig?.icon && !hideIcon ? (
               <itemConfig.icon />
             ) : (
-              <div
-                className="h-2 w-2 shrink-0 rounded-[2px]"
-                style={{
-                  backgroundColor: item.color,
-                }}
-              />
+              <ChartIndicator color={item.color} className="h-2 w-2" />
             )}
             {itemConfig?.label}
           </div>

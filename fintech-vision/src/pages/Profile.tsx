@@ -4,13 +4,16 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { User, Mail, Phone, MapPin, Briefcase, Edit2, Check, X, Loader2, Copy, ShieldCheck } from "lucide-react";
+import { User, Mail, Phone, MapPin, Briefcase, Edit2, Check, X, Loader2, Copy, ShieldCheck, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Profile() {
-  const { account, updateAccount } = useAuth();
+  const { user, account, accounts, updateAccount } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showNewAccount, setShowNewAccount] = useState(false);
+  const [newAccForm, setNewAccForm] = useState({ accountType: "SAVINGS", initialBalance: 0 });
 
   const [formData, setFormData] = useState({
     email: account?.email || "",
@@ -48,7 +51,27 @@ export default function Profile() {
     }
   };
 
-  if (!account) return null;
+  const handleCreateAccount = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      await api.createAccount({
+        holderName: user.name,
+        email: user.email,
+        initialBalance: newAccForm.initialBalance,
+        accountType: newAccForm.accountType as any
+      });
+      toast.success("New account created successfully! Please refresh.");
+      setShowNewAccount(false);
+      window.location.reload(); // Simple refresh to load new accounts
+    } catch (err: unknown) {
+      toast.error((err as Error).message || "Failed to create account");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!account || !user) return null;
 
   return (
     <motion.div 
@@ -215,6 +238,62 @@ export default function Profile() {
               )}
             </AnimatePresence>
           </div>
+        </div>
+      </div>
+
+      {/* Accounts Section */}
+      <div className="rounded-xl border border-border bg-card p-6 shadow-card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-display text-lg font-semibold text-foreground">My Bank Accounts</h3>
+            <p className="text-sm text-muted-foreground">You currently have {accounts.length} linked account(s).</p>
+          </div>
+          <Button onClick={() => setShowNewAccount(!showNewAccount)} variant="outline">
+            <Plus className="mr-2 h-4 w-4" /> Open New Account
+          </Button>
+        </div>
+
+        <AnimatePresence>
+          {showNewAccount && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-6 p-4 border rounded-lg bg-muted/30 overflow-hidden">
+              <h4 className="font-semibold mb-3">Create a New Account</h4>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <span className="text-sm font-medium">Account Type</span>
+                  <Select value={newAccForm.accountType} onValueChange={(v) => setNewAccForm({ ...newAccForm, accountType: v })}>
+                    <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SAVINGS">Savings</SelectItem>
+                      <SelectItem value="CHECKING">Checking</SelectItem>
+                      <SelectItem value="CURRENT">Current</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <span className="text-sm font-medium">Initial Deposit (₹)</span>
+                  <Input type="number" min="0" value={newAccForm.initialBalance} onChange={(e) => setNewAccForm({ ...newAccForm, initialBalance: parseFloat(e.target.value) || 0 })} className="bg-background" />
+                </div>
+              </div>
+              <Button onClick={handleCreateAccount} disabled={loading} className="mt-4">
+                {loading ? "Processing..." : "Confirm & Open"}
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-4">
+          {accounts.map(acc => (
+            <div key={acc.accountNumber} className={`p-4 rounded-xl border ${acc.accountNumber === account.accountNumber ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}>
+              <div className="flex justify-between items-start mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{acc.accountType}</span>
+                {acc.accountNumber === account.accountNumber && (
+                  <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-bold">ACTIVE VIEW</span>
+                )}
+              </div>
+              <p className="font-mono text-sm font-medium mb-1">{acc.accountNumber}</p>
+              <p className="font-display text-lg font-bold">₹{acc.balance.toLocaleString('en-IN')}</p>
+            </div>
+          ))}
         </div>
       </div>
     </motion.div>

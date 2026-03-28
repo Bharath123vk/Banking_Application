@@ -10,20 +10,30 @@ import { toast } from "sonner";
 import { Globe, ArrowLeft } from "lucide-react";
 
 export default function Signup() {
-  const [form, setForm] = useState<SignUpData>({ holderName: "", email: "", initialBalance: 0, accountType: "SAVINGS" });
+  const [form, setForm] = useState({ holderName: "", email: "", password: "", initialBalance: 0, accountType: "SAVINGS" });
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.holderName.trim() || !form.email.trim()) { toast.error("Please fill all fields"); return; }
+    if (!form.holderName.trim() || !form.email.trim() || !form.password.trim()) { toast.error("Please fill all fields"); return; }
     if (form.initialBalance < 0) { toast.error("Initial balance cannot be negative"); return; }
     setLoading(true);
     try {
-      const account = await api.createAccount(form);
-      login(account);
-      toast.success(`Account ${account.accountNumber} created! Welcome, ${account.holderName}!`);
+      // 1. Register User
+      const authRes = await api.registerUser({ name: form.holderName, email: form.email, password: form.password });
+      await login(authRes.token, authRes.user);
+
+      // 2. Create Initial Bank Account
+      const account = await api.createAccount({ 
+        holderName: form.holderName, 
+        email: form.email, 
+        initialBalance: form.initialBalance, 
+        accountType: form.accountType as any 
+      });
+
+      toast.success(`Welcome ${authRes.user.name}! Account ${account.accountNumber} created!`);
       navigate("/dashboard");
     } catch (err: unknown) {
       toast.error((err as Error).message || "Failed to create account");
@@ -61,12 +71,16 @@ export default function Signup() {
               <Input id="email" type="email" placeholder="rahul@example.in" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="h-12" />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="h-12" />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="balance">Initial Balance (₹)</Label>
               <Input id="balance" type="number" min="0" step="0.01" placeholder="1000.00" value={form.initialBalance} onChange={(e) => setForm({ ...form, initialBalance: parseFloat(e.target.value) || 0 })} className="h-12" />
             </div>
             <div className="space-y-2">
               <Label>Account Type</Label>
-              <Select value={form.accountType} onValueChange={(v) => setForm({ ...form, accountType: v as SignUpData['accountType'] })}>
+              <Select value={form.accountType} onValueChange={(v) => setForm({ ...form, accountType: v })}>
                 <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="SAVINGS">Savings</SelectItem>

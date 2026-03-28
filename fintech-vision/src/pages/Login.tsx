@@ -9,22 +9,23 @@ import { toast } from "sonner";
 import { Globe, ArrowLeft } from "lucide-react";
 
 export default function Login() {
-  const [accountNumber, setAccountNumber] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!accountNumber.trim()) { toast.error("Please enter your account number"); return; }
+    if (!email.trim() || !password.trim()) { toast.error("Please enter email and password"); return; }
     setLoading(true);
     try {
-      const account = await api.getAccount(accountNumber.trim());
-      login(account);
-      toast.success(`Welcome back, ${account.holderName}!`);
+      const authRes = await api.loginUser({ email: email.trim(), password });
+      await login(authRes.token, authRes.user);
+      toast.success(`Welcome back, ${authRes.user.name}!`);
       navigate("/dashboard");
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Account not found. Please check your account number.";
+      const errorMessage = err instanceof Error ? err.message : "Invalid credentials";
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -49,11 +50,15 @@ export default function Login() {
             <ArrowLeft className="h-4 w-4" /> Back to Home
           </Link>
           <h2 className="font-display text-3xl font-bold text-foreground mb-2">Welcome Back</h2>
-          <p className="text-muted-foreground mb-8">Enter your account number to access the dashboard.</p>
+          <p className="text-muted-foreground mb-8">Enter your credentials to access the dashboard.</p>
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="accountNumber">Account Number</Label>
-              <Input id="accountNumber" placeholder="e.g. ACC00000001" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="h-12" />
+              <Label htmlFor="email">Email Address</Label>
+              <Input id="email" type="email" placeholder="e.g. hello@vaultbank.in" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="h-12" />
             </div>
             <Button type="submit" variant="hero" className="w-full h-12 text-base" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}

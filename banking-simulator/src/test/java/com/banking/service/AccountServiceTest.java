@@ -12,6 +12,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import com.banking.model.User;
+import com.banking.repository.UserRepository;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -26,6 +32,9 @@ public class AccountServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private AccountService accountService;
@@ -46,6 +55,18 @@ public class AccountServiceTest {
 
     @Test
     void testCreateAccount_Success() {
+        // Mock Security Context
+        Authentication authentication = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        SecurityContextHolder.setContext(securityContext);
+        
+        UserDetails userDetails = mock(UserDetails.class);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userDetails.getUsername()).thenReturn("jane@example.com");
+
+        User authUser = new User("Jane Doe", "jane@example.com", "pass", com.banking.model.Role.USER);
+        when(userRepository.findByEmail("jane@example.com")).thenReturn(Optional.of(authUser));
         CreateAccountRequest req = new CreateAccountRequest(
                 "Jane Doe",
                 "jane@example.com",
@@ -53,7 +74,6 @@ public class AccountServiceTest {
                 AccountType.SAVINGS
         );
 
-        when(accountRepository.existsByEmail(req.getEmail())).thenReturn(false);
         when(accountRepository.existsByAccountNumber(anyString())).thenReturn(false);
         when(accountRepository.save(any(Account.class))).thenReturn(sampleAccount);
 
@@ -66,14 +86,24 @@ public class AccountServiceTest {
 
     @Test
     void testCreateAccount_EmailAlreadyExists() {
+        // Mock Security Context
+        Authentication authentication = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        SecurityContextHolder.setContext(securityContext);
+        
+        UserDetails userDetails = mock(UserDetails.class);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userDetails.getUsername()).thenReturn("jane@example.com");
+
+        // Act & Assert for user not found scenario (since duplicate email check was removed from service)
+        when(userRepository.findByEmail("jane@example.com")).thenReturn(Optional.empty());
         CreateAccountRequest req = new CreateAccountRequest(
                 "Jane Doe",
                 "jane@example.com",
                 new BigDecimal("2000.00"),
                 AccountType.SAVINGS
         );
-
-        when(accountRepository.existsByEmail(req.getEmail())).thenReturn(true);
 
         assertThrows(RuntimeException.class, () -> accountService.createAccount(req));
         verify(accountRepository, never()).save(any(Account.class));

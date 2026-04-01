@@ -20,6 +20,18 @@ public class AccountRepositoryTest {
     @Autowired
     private AccountRepository accountRepository;
 
+    @Autowired
+    private org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager entityManager;
+
+    private com.banking.model.User testUser;
+
+    @org.junit.jupiter.api.BeforeEach
+    public void setup() {
+        testUser = new com.banking.model.User("Test User", "test@test.com", "password",
+                com.banking.model.Role.USER);
+        testUser = entityManager.persistAndFlush(testUser);
+    }
+
     @Test
     public void testSaveAndFindByAccountNumber() {
         // Arrange
@@ -31,6 +43,7 @@ public class AccountRepositoryTest {
                 .balance(new BigDecimal("1000.00"))
                 .active(true)
                 .build();
+        account.setUser(testUser);
 
         // Act
         accountRepository.save(account);
@@ -53,6 +66,7 @@ public class AccountRepositoryTest {
                 .balance(new BigDecimal("500.00"))
                 .active(true)
                 .build();
+        account.setUser(testUser);
 
         // Act
         accountRepository.save(account);
@@ -74,6 +88,7 @@ public class AccountRepositoryTest {
                 .balance(new BigDecimal("250.00"))
                 .active(true)
                 .build();
+        account.setUser(testUser);
 
         accountRepository.save(account);
 
@@ -95,6 +110,7 @@ public class AccountRepositoryTest {
                 .balance(new BigDecimal("100.00"))
                 .active(true)
                 .build();
+        lowBalanceAccount.setUser(testUser);
 
         Account highBalanceAccount = Account.builder()
                 .accountNumber("TEST005")
@@ -104,6 +120,7 @@ public class AccountRepositoryTest {
                 .balance(new BigDecimal("1500.00"))
                 .active(true)
                 .build();
+        highBalanceAccount.setUser(testUser);
 
         accountRepository.save(lowBalanceAccount);
         accountRepository.save(highBalanceAccount);

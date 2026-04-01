@@ -8,7 +8,7 @@ import { FileText, Download, RefreshCw, Loader2, ShieldCheck, AlertCircle } from
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Reports() {
-  const { account } = useAuth();
+  const { account, token } = useAuth();
   const [generating, setGenerating] = useState(false);
 
   const { data: reports = [], refetch, isLoading } = useQuery({
@@ -59,7 +59,7 @@ export default function Reports() {
       return;
     }
 
-    const url = `http://localhost:8081/api/reports/${filename}?owner=${account.accountNumber}`;
+    const url = `http://localhost:8081/api/reports/${filename}?owner=${account.accountNumber}&token=${token}`;
     
     const link = document.createElement("a");
     link.href = url;

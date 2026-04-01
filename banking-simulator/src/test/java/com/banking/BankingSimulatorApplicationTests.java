@@ -16,12 +16,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import com.banking.model.User;
+import com.banking.repository.UserRepository;
 
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @Transactional
 class BankingSimulatorApplicationTests {
 
@@ -34,6 +38,9 @@ class BankingSimulatorApplicationTests {
     @Autowired
     private AccountRepository accountRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private String acc1Num;
     private String acc2Num;
 
@@ -42,6 +49,14 @@ class BankingSimulatorApplicationTests {
 
         // Clear database before every test
         accountRepository.deleteAll();
+        userRepository.deleteAll();
+
+        User testUser = new User("Test User 1", "test1@example.com", "password", com.banking.model.Role.USER);
+        testUser = userRepository.save(testUser);
+
+        org.springframework.security.authentication.UsernamePasswordAuthenticationToken auth = 
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(testUser, null, testUser.getAuthorities());
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
 
         CreateAccountRequest req1 = new CreateAccountRequest();
         req1.setHolderName("Test User 1");
@@ -54,7 +69,7 @@ class BankingSimulatorApplicationTests {
 
         CreateAccountRequest req2 = new CreateAccountRequest();
         req2.setHolderName("Test User 2");
-        req2.setEmail("test2@example.com");
+        req2.setEmail("test1@example.com"); // Reusing same authenticated user for testing logic
         req2.setInitialBalance(new BigDecimal("500.00"));
         req2.setAccountType(AccountType.CHECKING);
 

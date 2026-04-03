@@ -1,6 +1,7 @@
 package com.banking.service;
 
 import com.banking.model.Account;
+import com.banking.model.Transaction;
 import com.banking.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -64,6 +66,41 @@ public class AlertService {
             }
         } else {
             log.warn("CONSOLE ALERT: {}", message);
+        }
+    }
+
+    @Async
+    public void sendTransactionAlert(Account account, Transaction transaction) {
+        String message = String.format("Dear %s,\n\nA %s transaction of $%.2f has been processed on your account (%s).\n\n" +
+                        "Transaction Details:\n" +
+                        "Reference: %s\n" +
+                        "Description: %s\n" +
+                        "Amount: $%.2f\n" +
+                        "Remaining Balance: $%.2f\n\n" +
+                        "Thank you for banking with VaultBank.",
+                account.getHolderName(),
+                transaction.getTransactionType().name(),
+                transaction.getAmount(),
+                account.getAccountNumber(),
+                transaction.getReferenceNumber(),
+                transaction.getDescription(),
+                transaction.getAmount(),
+                account.getBalance());
+
+        if (emailEnabled) {
+            try {
+                SimpleMailMessage mailMessage = new SimpleMailMessage();
+                mailMessage.setFrom(fromEmail);
+                mailMessage.setTo(account.getEmail());
+                mailMessage.setSubject("Transaction Alert - VaultBank");
+                mailMessage.setText(message);
+                mailSender.send(mailMessage);
+                log.info("Transaction email alert sent to {} for account {}", account.getEmail(), account.getAccountNumber());
+            } catch (Exception e) {
+                log.error("Failed to send transaction email alert to {}: {}", account.getEmail(), e.getMessage());
+            }
+        } else {
+            log.warn("CONSOLE ALERT (Transaction): {}", message.replace("\n", " "));
         }
     }
 }

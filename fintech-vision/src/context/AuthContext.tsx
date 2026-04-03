@@ -10,6 +10,7 @@ interface AuthState {
   login: (token: string, user: UserProfile) => Promise<void>;
   logout: () => void;
   updateAccount: (account: Account) => void;
+  switchAccount: (account: Account) => void;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -75,8 +76,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
+  const switchAccount = useCallback((acc: Account) => {
+    setAccount(acc);
+    localStorage.setItem("bank_account", JSON.stringify(acc));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated: !!token, token, user, account, accounts, login, logout, updateAccount }}>
+    <AuthContext.Provider value={{ isAuthenticated: !!token, token, user, account, accounts, login, logout, updateAccount, switchAccount }}>
       {children}
     </AuthContext.Provider>
   );

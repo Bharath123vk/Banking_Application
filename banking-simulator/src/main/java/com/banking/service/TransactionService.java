@@ -57,6 +57,7 @@ public class TransactionService {
         transactionRepository.save(transaction);
         log.info("Deposit successful for account {}", accountNumber);
         alertService.checkAndAlert(account);
+        alertService.sendTransactionAlert(account, transaction);
         return transaction;
     }
 
@@ -81,6 +82,7 @@ public class TransactionService {
         transactionRepository.save(transaction);
         log.info("Withdrawal successful for account {}", accountNumber);
         alertService.checkAndAlert(account);
+        alertService.sendTransactionAlert(account, transaction);
         return transaction;
     }
 
@@ -138,6 +140,7 @@ public class TransactionService {
 
             recordedTransactions.add(transactionRepository.save(inTx));
             alertService.checkAndAlert(destAccount);
+            alertService.sendTransactionAlert(destAccount, inTx);
             log.info("Internal Transfer: Recipient {} updated.", destinationAccountNumber);
         } else {
             // Destination not in our DB? No problem. No 404 thrown.
@@ -146,6 +149,7 @@ public class TransactionService {
 
         log.info("Transfer successful from {} to {}", sourceAccountNumber, destinationAccountNumber);
         alertService.checkAndAlert(sourceAccount);
+        alertService.sendTransactionAlert(sourceAccount, outTx);
 
         return recordedTransactions;
     }

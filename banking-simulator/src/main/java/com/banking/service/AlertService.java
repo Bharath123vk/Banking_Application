@@ -21,41 +21,56 @@ public class AlertService {
     private final AccountRepository accountRepository;
     private final JavaMailSender mailSender;
 
-    @Value("${banking.alert.email-enabled:false}")
+    @Value("${banking.alert.email-enabled:true}")
     private boolean emailEnabled;
 
     @Value("${banking.alert.low-balance-threshold:500.00}")
     private BigDecimal threshold;
 
-    @Value("${spring.mail.username:noreply@banking.com}")
+    @Value("${spring.mail.username}")
     private String fromEmail;
 
+    /**
+     * Real-time check called after transactions.
+     */
     public void checkAndAlert(Account account) {
         if (account.getBalance().compareTo(threshold) < 0) {
+            log.info("Low balance detected for account: {}", account.getAccountNumber());
             sendLowBalanceAlert(account);
         }
     }
 
-    @Scheduled(fixedRate = 3_600_000)
+    /**
+     * Hourly background scan to remind users who still have low balances.
+     */
+    @Scheduled(fixedRate = 3600000)
     public void scanAllAccounts() {
         log.info("Starting hourly scan for low balance accounts...");
-        List<Account> lowBalanceAccounts = accountRepository.findAccountsBelowThreshold(threshold);
-        for (Account account : lowBalanceAccounts) {
-            sendLowBalanceAlert(account);
+        // Ensure your AccountRepository has this custom query or use findAll and filter
+        List<Account> allAccounts = accountRepository.findAll();
+        long count = 0;
+        for (Account account : allAccounts) {
+            if (account.isActive() && account.getBalance().compareTo(threshold) < 0) {
+                sendLowBalanceAlert(account);
+                count++;
+            }
         }
-        log.info("Completed hourly scan. Found {} accounts below threshold.", lowBalanceAccounts.size());
+        log.info("Completed hourly scan. Sent {} alerts.", count);
     }
 
     private void sendLowBalanceAlert(Account account) {
-        String message = String.format("Alert: Account %s balance is %.2f, which is below the threshold of %.2f.",
-                account.getAccountNumber(), account.getBalance(), threshold);
+        String subject = "CRITICAL: Low Balance Alert - VaultBank";
+        String message = String.format(
+                "Dear %s,\n\nYour account %s balance is ₹%.2f, which is below our healthy threshold of ₹%.2f.\n\n" +
+                        "Please deposit funds soon to ensure uninterrupted service.\n\nThank you,\nVaultBank Security Team",
+                account.getHolderName(), account.getAccountNumber(), account.getBalance(), threshold);
 
         if (emailEnabled) {
             try {
                 SimpleMailMessage mailMessage = new SimpleMailMessage();
                 mailMessage.setFrom(fromEmail);
                 mailMessage.setTo(account.getEmail());
-                mailMessage.setSubject("Low Balance Alert - Banking Simulator");
+                mailMessage.setSubject(subject);
                 mailMessage.setText(message);
                 mailSender.send(mailMessage);
                 log.info("Email alert sent to {} for account {}", account.getEmail(), account.getAccountNumber());
@@ -63,7 +78,7 @@ public class AlertService {
                 log.error("Failed to send email alert to {}: {}", account.getEmail(), e.getMessage());
             }
         } else {
-            log.warn("CONSOLE ALERT: {}", message);
+            log.warn("EMAIL DISABLED - CONSOLE LOG ONLY: {}", message);
         }
     }
 }

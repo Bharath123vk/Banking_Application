@@ -10,6 +10,7 @@ import com.banking.repository.AccountRepository;
 import com.banking.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,8 +28,12 @@ public class TransactionService {
     private final AccountService accountService;
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
-    private final AlertService alertService;
+    private final AlertService alertService; // FIXED: Added missing AlertService field
 
+    @Autowired
+    private EmailService emailService;
+
+    // FIXED: Updated constructor to properly inject all required services
     public TransactionService(AccountService accountService,
                               AccountRepository accountRepository,
                               TransactionRepository transactionRepository,
@@ -46,16 +51,27 @@ public class TransactionService {
         accountService.validateActiveAccount(account);
 
         BigDecimal balanceBefore = account.getBalance();
-        account.setBalance(balanceBefore.add(amount));
+        BigDecimal balanceAfter = balanceBefore.add(amount);
+        account.setBalance(balanceAfter);
 
-        // For deposits, the target is the account itself
-        Transaction transaction = buildTransaction(account, amount, balanceBefore, account.getBalance(),
+        Transaction transaction = buildTransaction(account, amount, balanceBefore, balanceAfter,
                 TransactionType.DEPOSIT, TransactionStatus.SUCCESS, description, accountNumber);
 
-        transactionRepository.save(transaction);
+        Transaction savedTx = transactionRepository.save(transaction);
         log.info("Deposit successful for account {}", accountNumber);
+
+        // Send Real-Time Email Notification
+        String subject = "VaultBank: Deposit Confirmation";
+        String body = String.format("Dear %s,\n\nYour account %s has been credited with ₹%.2f.\n" +
+                        "Transaction Reference: %s\n" +
+                        "New Balance: ₹%.2f\n\nThank you for banking with VaultBank.",
+                account.getHolderName(), accountNumber, amount, savedTx.getReferenceNumber(), balanceAfter);
+        emailService.sendEmail(account.getEmail(), subject, body);
+
+        // Use AlertService to check account health
         alertService.checkAndAlert(account);
-        return transaction;
+
+        return savedTx;
     }
 
     @Transactional
@@ -72,14 +88,26 @@ public class TransactionService {
             throw new InsufficientFundsException("Insufficient funds in account: " + accountNumber);
         }
 
-        account.setBalance(balanceBefore.subtract(amount));
-        Transaction transaction = buildTransaction(account, amount, balanceBefore, account.getBalance(),
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+        account.setBalance(balanceAfter);
+        Transaction transaction = buildTransaction(account, amount, balanceBefore, balanceAfter,
                 TransactionType.WITHDRAWAL, TransactionStatus.SUCCESS, description, accountNumber);
 
-        transactionRepository.save(transaction);
+        Transaction savedTx = transactionRepository.save(transaction);
         log.info("Withdrawal successful for account {}", accountNumber);
+
+        // Send Real-Time Email Notification
+        String subject = "VaultBank: Transaction Alert (Debit)";
+        String body = String.format("Dear %s,\n\nYour account %s has been debited by ₹%.2f.\n" +
+                        "Transaction Reference: %s\n" +
+                        "Remaining Balance: ₹%.2f\n\nIf this was not you, please block your account immediately.",
+                account.getHolderName(), accountNumber, amount, savedTx.getReferenceNumber(), balanceAfter);
+        emailService.sendEmail(account.getEmail(), subject, body);
+
+        // Use AlertService to trigger low balance warnings
         alertService.checkAndAlert(account);
-        return transaction;
+
+        return savedTx;
     }
 
     @Transactional
@@ -91,13 +119,11 @@ public class TransactionService {
             throw new IllegalArgumentException("Cannot transfer to the same account");
         }
 
-        // 1. SOURCE: Must exist (we use accountService here because the sender MUST be our user)
         Account sourceAccount = accountService.getAccount(sourceAccountNumber);
         accountService.validateActiveAccount(sourceAccount);
 
         BigDecimal sourceBalanceBefore = sourceAccount.getBalance();
 
-        // 2. CHECK BALANCE
         if (sourceBalanceBefore.compareTo(amount) < 0) {
             Transaction failedTx = buildTransaction(sourceAccount, amount, sourceBalanceBefore, sourceBalanceBefore,
                     TransactionType.TRANSFER_OUT, TransactionStatus.FAILED, "Insufficient funds", destinationAccountNumber);
@@ -105,11 +131,10 @@ public class TransactionService {
             throw new InsufficientFundsException("Insufficient balance for this transfer.");
         }
 
-        // 3. DEDUCT FROM SOURCE
-        sourceAccount.setBalance(sourceBalanceBefore.subtract(amount));
+        BigDecimal sourceBalanceAfter = sourceBalanceBefore.subtract(amount);
+        sourceAccount.setBalance(sourceBalanceAfter);
 
-        // Create the record for the sender
-        Transaction outTx = buildTransaction(sourceAccount, amount, sourceBalanceBefore, sourceAccount.getBalance(),
+        Transaction outTx = buildTransaction(sourceAccount, amount, sourceBalanceBefore, sourceBalanceAfter,
                 TransactionType.TRANSFER_OUT, TransactionStatus.SUCCESS,
                 (description != null && !description.isEmpty()) ? description : "Transfer to " + destinationAccountNumber,
                 destinationAccountNumber);
@@ -117,32 +142,37 @@ public class TransactionService {
         List<Transaction> recordedTransactions = new ArrayList<>();
         recordedTransactions.add(transactionRepository.save(outTx));
 
-        // 4. DESTINATION: "Safe Lookup" (This is the fix!)
-        // We use accountRepository directly so it DOES NOT throw a 404 if missing
+        // Send Email Alert to Sender
+        emailService.sendEmail(sourceAccount.getEmail(), "VaultBank: Fund Transfer Initiated",
+                String.format("Dear %s,\n\nYou have successfully transferred ₹%.2f to account %s.\nNew Balance: ₹%.2f",
+                        sourceAccount.getHolderName(), amount, destinationAccountNumber, sourceBalanceAfter));
+
         Optional<Account> destinationAccountOpt = accountRepository.findByAccountNumber(destinationAccountNumber);
 
         if (destinationAccountOpt.isPresent()) {
             Account destAccount = destinationAccountOpt.get();
             BigDecimal destBalanceBefore = destAccount.getBalance();
+            BigDecimal destBalanceAfter = destBalanceBefore.add(amount);
 
-            // Update recipient balance
-            destAccount.setBalance(destBalanceBefore.add(amount));
+            destAccount.setBalance(destBalanceAfter);
 
-            // Create record for recipient
-            Transaction inTx = buildTransaction(destAccount, amount, destBalanceBefore, destAccount.getBalance(),
+            Transaction inTx = buildTransaction(destAccount, amount, destBalanceBefore, destBalanceAfter,
                     TransactionType.TRANSFER_IN, TransactionStatus.SUCCESS,
                     "Received from " + sourceAccountNumber,
                     sourceAccountNumber);
 
             recordedTransactions.add(transactionRepository.save(inTx));
+
+            // Send Email Alert to Recipient
+            emailService.sendEmail(destAccount.getEmail(), "VaultBank: Funds Received",
+                    String.format("Dear %s,\n\nYou have received ₹%.2f from account %s.\nNew Balance: ₹%.2f",
+                            destAccount.getHolderName(), amount, sourceAccountNumber, destBalanceAfter));
+
+            // Check recipient health
             alertService.checkAndAlert(destAccount);
-            log.info("Internal Transfer: Recipient {} updated.", destinationAccountNumber);
-        } else {
-            // Destination not in our DB? No problem. No 404 thrown.
-            log.info("External Transfer: {} is not in our system. Processing as external payment.", destinationAccountNumber);
         }
 
-        log.info("Transfer successful from {} to {}", sourceAccountNumber, destinationAccountNumber);
+        // Check sender balance health
         alertService.checkAndAlert(sourceAccount);
 
         return recordedTransactions;
@@ -173,7 +203,7 @@ public class TransactionService {
                 .transactionType(type)
                 .transactionStatus(status)
                 .description(description)
-                .targetAccountNumber(targetAccount) // Linked to the new model field
+                .targetAccountNumber(targetAccount)
                 .build();
     }
 }

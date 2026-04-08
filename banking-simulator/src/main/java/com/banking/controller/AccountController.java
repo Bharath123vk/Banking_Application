@@ -26,27 +26,32 @@ public class AccountController {
 
     /**
      * UPDATE PROFILE ENDPOINT
-     * Matches api.ts: updateProfile(accountNumber, data)
+     * Triggers a notification email via AccountService.updateAccount
      */
     @PutMapping("/{accountNumber}/profile")
     public ResponseEntity<Account> updateProfile(
             @PathVariable String accountNumber,
             @RequestBody ProfileUpdateRequest profileData) {
 
+        // Retrieve existing account details
         Account account = accountService.getAccount(accountNumber);
 
-        // Update fields if they are provided in the request
+        // Update fields only if they are provided in the request body
         if (profileData.getHolderName() != null) account.setHolderName(profileData.getHolderName());
         if (profileData.getEmail() != null) account.setEmail(profileData.getEmail());
         if (profileData.getPhoneNumber() != null) account.setPhoneNumber(profileData.getPhoneNumber());
         if (profileData.getAddress() != null) account.setAddress(profileData.getAddress());
         if (profileData.getOccupation() != null) account.setOccupation(profileData.getOccupation());
 
-        // Use the existing service to save the updated account
+        // Saving via service layer to trigger the "Profile Updated" email alert
         Account updatedAccount = accountService.updateAccount(account);
         return ResponseEntity.ok(updatedAccount);
     }
 
+    /**
+     * CREATE ACCOUNT ENDPOINT
+     * Triggers the "Welcome Email" via AccountService.createAccount
+     */
     @PostMapping
     public ResponseEntity<Account> createAccount(@Valid @RequestBody CreateAccountRequest req) {
         Account account = accountService.createAccount(req);
@@ -85,11 +90,19 @@ public class AccountController {
         return ResponseEntity.ok(summary);
     }
 
+    /**
+     * DEACTIVATE ACCOUNT
+     * Triggers deactivation email via AccountService
+     */
     @PutMapping("/{accountNumber}/deactivate")
     public ResponseEntity<Account> deactivateAccount(@PathVariable String accountNumber) {
         return ResponseEntity.ok(accountService.deactivateAccount(accountNumber));
     }
 
+    /**
+     * REACTIVATE ACCOUNT
+     * Triggers reactivation email via AccountService
+     */
     @PutMapping("/{accountNumber}/activate")
     public ResponseEntity<Account> reactivateAccount(@PathVariable String accountNumber) {
         return ResponseEntity.ok(accountService.reactivateAccount(accountNumber));

@@ -44,6 +44,38 @@ public class ReportService {
         this.transactionService = transactionService;
     }
 
+    /**
+     * NEW: Generates a CSV string for Google Spreadsheet integration.
+     * This fulfills the mentor requirement for spreadsheet-compatible reporting.
+     */
+    public String generateTransactionCsv(String accountNumber) {
+        List<Transaction> transactions = transactionService.getAccountTransactions(accountNumber);
+        StringBuilder csvBuilder = new StringBuilder();
+
+        // CSV Headers - Google Sheets and Excel recognize these automatically
+        csvBuilder.append("Reference Number,Date,Transaction Type,Amount (INR),Status,Closing Balance,Description\n");
+
+        if (transactions.isEmpty()) {
+            csvBuilder.append("No transactions found for this account,,,,,,");
+        } else {
+            for (Transaction tx : transactions) {
+                csvBuilder.append(tx.getReferenceNumber()).append(",")
+                        .append(tx.getTransactionDate().format(DATE_FORMATTER)).append(",")
+                        .append(tx.getTransactionType()).append(",")
+                        .append(tx.getAmount().setScale(2, RoundingMode.HALF_UP)).append(",")
+                        .append(tx.getTransactionStatus()).append(",")
+                        .append(tx.getBalanceAfter().setScale(2, RoundingMode.HALF_UP)).append(",")
+                        // Handle potential commas in descriptions to prevent CSV formatting errors
+                        .append(tx.getDescription() != null ? tx.getDescription().replace(",", " ") : "-")
+                        .append("\n");
+            }
+        }
+        return csvBuilder.toString();
+    }
+
+    /**
+     * Existing PDF Statement Logic - Kept as requested.
+     */
     public String generateAccountStatement(String accountNumber) {
         Account account = accountService.getAccount(accountNumber);
         List<Transaction> transactions = transactionService.getAccountTransactions(accountNumber);
@@ -72,7 +104,6 @@ public class ReportService {
             document.add(new Paragraph("Account Number: " + account.getAccountNumber()));
             document.add(new Paragraph("Holder Name: " + account.getHolderName()));
             document.add(new Paragraph("Account Type: " + account.getAccountType()));
-            // FIXED: Used RoundingMode.HALF_UP instead of deprecated constant
             document.add(new Paragraph("Current Balance: ₹" + account.getBalance().setScale(2, RoundingMode.HALF_UP)));
             document.add(new Paragraph("Status: " + (account.isActive() ? "ACTIVE" : "INACTIVE")));
 
@@ -109,6 +140,9 @@ public class ReportService {
         return filename;
     }
 
+    /**
+     * Existing PDF Management Summary Logic - Kept as requested.
+     */
     public String generateBankSummaryReport() {
         List<Account> allAccounts = accountService.getAllAccounts();
         ensureDirectoryExists();
@@ -156,7 +190,8 @@ public class ReportService {
         File dir = new File(outputDir);
         List<String> reportFiles = new ArrayList<>();
         if (dir.exists() && dir.isDirectory()) {
-            File[] files = dir.listFiles((d, name) -> name.endsWith(".pdf"));
+            // Updated to list both PDF and CSV for the management dashboard
+            File[] files = dir.listFiles((d, name) -> name.endsWith(".pdf") || name.endsWith(".csv"));
             if (files != null) {
                 for (File file : files) reportFiles.add(file.getName());
             }

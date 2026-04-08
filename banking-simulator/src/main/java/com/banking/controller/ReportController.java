@@ -38,6 +38,25 @@ public class ReportController {
         this.accountRepository = accountRepository;
     }
 
+    /**
+     * NEW: GOOGLE SPREADSHEET (CSV) EXPORT ENDPOINT
+     * Directly addresses mentor feedback for spreadsheet-compatible reports.
+     */
+    @GetMapping("/export-csv/{accountNumber}")
+    public ResponseEntity<byte[]> downloadCsv(@PathVariable String accountNumber) {
+        // Generates the CSV string content from the Service
+        String csvData = reportService.generateTransactionCsv(accountNumber);
+        byte[] content = csvData.getBytes();
+
+        String filename = "VaultBank_Statement_" + accountNumber + ".csv";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + filename)
+                .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(content);
+    }
+
     @PostMapping("/account-statement/{accountNumber}")
     public ResponseEntity<Map<String, String>> generateAccountStatement(@PathVariable String accountNumber) {
         String filename = reportService.generateAccountStatement(accountNumber);
@@ -64,7 +83,7 @@ public class ReportController {
     public ResponseEntity<List<String>> listReports(@RequestParam(required = false) String accountNumber) {
         List<String> allFiles = reportService.listReports();
 
-        // If no account is provided, return empty or a secure default
+        // If no account is provided, return only the general bank summary
         if (accountNumber == null || accountNumber.isEmpty()) {
             return ResponseEntity.ok(allFiles.stream()
                     .filter(name -> name.startsWith("Bank_Summary"))
@@ -102,9 +121,12 @@ public class ReportController {
 
         Resource resource = new FileSystemResource(file);
 
+        // Determine Media Type based on extension
         MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
         if (filename.toLowerCase().endsWith(".pdf")) {
             mediaType = MediaType.APPLICATION_PDF;
+        } else if (filename.toLowerCase().endsWith(".csv")) {
+            mediaType = MediaType.parseMediaType("text/csv");
         }
 
         return ResponseEntity.ok()

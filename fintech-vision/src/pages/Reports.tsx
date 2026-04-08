@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { FileText, Download, RefreshCw, Loader2, ShieldCheck, AlertCircle } from "lucide-react";
+import { FileText, Download, RefreshCw, Loader2, ShieldCheck, AlertCircle, Table as TableIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Reports() {
@@ -32,6 +32,29 @@ export default function Reports() {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Failed to generate statement";
       toast.error(errorMessage);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  /**
+   * NEW: Direct CSV Export for Google Spreadsheets
+   * Triggers the backend CSV generation and immediate download.
+   */
+  const handleExportCSV = async () => {
+    if (!account) return;
+    setGenerating(true);
+    try {
+      const url = `http://localhost:8081/api/reports/export-csv/${account.accountNumber}`;
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `VaultBank_Statement_${account.accountNumber}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("CSV Statement exported for Spreadsheets!");
+    } catch (err: unknown) {
+      toast.error("Failed to export CSV");
     } finally {
       setGenerating(false);
     }
@@ -86,7 +109,8 @@ export default function Reports() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 max-w-3xl">
+      {/* Report Generation Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
         <motion.div 
           whileHover={{ y: -4 }}
           className="rounded-xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all"
@@ -94,9 +118,9 @@ export default function Reports() {
           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <FileText className="h-5 w-5 text-primary" />
           </div>
-          <h3 className="font-display text-lg font-semibold text-foreground mb-2">Account Statement</h3>
+          <h3 className="font-display text-lg font-semibold text-foreground mb-2">PDF Statement</h3>
           <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-            Includes all transactions, running balances, and reference IDs for the current fiscal period.
+            Professional document for formal record keeping and identification.
           </p>
           <Button 
             className="w-full h-11 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 active:scale-95 transition-all" 
@@ -104,7 +128,30 @@ export default function Reports() {
             disabled={generating}
           >
             {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-            Generate PDF Statement
+            Generate PDF
+          </Button>
+        </motion.div>
+
+        {/* NEW: CSV / Spreadsheet Export Card */}
+        <motion.div 
+          whileHover={{ y: -4 }}
+          className="rounded-xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all"
+        >
+          <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
+            <TableIcon className="h-5 w-5 text-emerald-600" />
+          </div>
+          <h3 className="font-display text-lg font-semibold text-foreground mb-2">Export Data</h3>
+          <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+            Download CSV files compatible with Google Spreadsheets and Microsoft Excel.
+          </p>
+          <Button 
+            variant="outline"
+            className="w-full h-11 border-emerald-500/20 hover:bg-emerald-50 text-emerald-700 active:scale-95 transition-all" 
+            onClick={handleExportCSV} 
+            disabled={generating}
+          >
+            {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <TableIcon className="mr-2 h-4 w-4" />}
+            Export to Sheets
           </Button>
         </motion.div>
 
@@ -117,7 +164,7 @@ export default function Reports() {
           </div>
           <h3 className="font-display text-lg font-semibold text-foreground mb-2">Bank Summary</h3>
           <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-            A comprehensive overview of total bank liquidity, holdings, and account distribution metrics.
+            Overview of total bank liquidity and holdings (Management only).
           </p>
           <Button 
             variant="outline" 
@@ -126,11 +173,12 @@ export default function Reports() {
             disabled={generating}
           >
             {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Generate PDF Summary
+            Bank Summary
           </Button>
         </motion.div>
       </div>
 
+      {/* Archive List */}
       <div className="rounded-xl border border-border bg-card shadow-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-border bg-muted/20 px-4 py-4">
           <div className="flex items-center gap-2">
@@ -166,7 +214,7 @@ export default function Reports() {
                 </div>
                 <p className="text-base font-semibold text-foreground">Archive is Empty</p>
                 <p className="text-xs text-center max-w-[200px] mt-1">
-                  Once generated, your PDF statements will be securely stored here for 30 days.
+                  Once generated, your financial reports will be securely stored here.
                 </p>
               </motion.div>
             ) : (
@@ -184,16 +232,22 @@ export default function Reports() {
                   >
                     <div className="flex items-center gap-4">
                       <div className="h-10 w-10 rounded-lg bg-background border border-border flex items-center justify-center group-hover:border-primary/30 transition-colors shadow-sm">
-                        <FileText className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                        {report.endsWith(".csv") ? (
+                          <TableIcon className="h-5 w-5 text-emerald-600" />
+                        ) : (
+                          <FileText className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
+                        )}
                       </div>
                       <div className="min-w-0">
                         <span className="block text-sm font-semibold text-foreground truncate max-w-[200px] md:max-w-md">
                           {report}
                         </span>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground uppercase font-bold">PDF Document</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">
+                            {report.endsWith(".csv") ? "Spreadsheet Data" : "PDF Document"}
+                          </span>
                           <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-                          <span className="text-[10px] text-green-600 font-bold uppercase">Ready for Download</span>
+                          <span className="text-[10px] text-green-600 font-bold uppercase">Stored Securely</span>
                         </div>
                       </div>
                     </div>
@@ -218,7 +272,7 @@ export default function Reports() {
         <div className="space-y-1">
           <p className="text-xs font-bold text-amber-800 uppercase tracking-tight">Important Notice</p>
           <p className="text-xs text-amber-700 leading-relaxed">
-            Generated reports are unique to your account number and session. For security reasons, please do not share downloaded files containing sensitive balance information.
+            CSV exports are designed for data analysis in Google Spreadsheets. Ensure your workspace is private before importing sensitive banking data.
           </p>
         </div>
       </div>

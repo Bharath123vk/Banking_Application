@@ -6,6 +6,7 @@ import java.util.Random;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,20 +23,36 @@ public class AccountService {
 
     private final AccountRepository accountRepository;
 
+    // Inject the EmailService to handle notifications
+    @Autowired
+    private EmailService emailService;
+
     public AccountService(AccountRepository accountRepository) {
         this.accountRepository = accountRepository;
     }
 
     /**
-     * UPDATED: Added method to persist profile changes.
-     * Used by AccountController.updateProfile
+     * Persists profile changes and sends a notification about the profile update.
      */
     @Transactional
     public Account updateAccount(Account account) {
         log.info("Updating profile details for Account: {}", account.getAccountNumber());
-        return accountRepository.save(account);
+        Account updatedAccount = accountRepository.save(account);
+
+        // Notify user about profile changes
+        String subject = "VaultBank: Profile Updated";
+        String body = "Dear " + updatedAccount.getHolderName() + ",\n\n" +
+                "This is to confirm that your profile details for account " + updatedAccount.getAccountNumber() + " have been successfully updated.\n\n" +
+                "If you did not authorize this change, please contact our support team immediately.";
+
+        emailService.sendEmail(updatedAccount.getEmail(), subject, body);
+
+        return updatedAccount;
     }
 
+    /**
+     * Creates a new account and sends a Welcome Email to the user.
+     */
     @Transactional
     public Account createAccount(CreateAccountRequest req) {
         // 1. Check if email is already registered
@@ -61,7 +78,21 @@ public class AccountService {
                 .build();
 
         log.info("Creating new account for: {} | Account: {}", req.getHolderName(), generatedAccountNumber);
-        return accountRepository.save(account);
+        Account savedAccount = accountRepository.save(account);
+
+        // 5. Send Welcome Email (The "Wishing" part of the journey)
+        String subject = "Welcome to VaultBank!";
+        String body = "Dear " + savedAccount.getHolderName() + ",\n\n" +
+                "Congratulations! Your digital banking account has been successfully created.\n\n" +
+                "Account Details:\n" +
+                "Account Number: " + savedAccount.getAccountNumber() + "\n" +
+                "Account Type: " + savedAccount.getAccountType() + "\n" +
+                "Opening Balance: ₹" + savedAccount.getBalance() + "\n\n" +
+                "Thank you for choosing VaultBank for your financial journey.";
+
+        emailService.sendEmail(savedAccount.getEmail(), subject, body);
+
+        return savedAccount;
     }
 
     @Transactional(readOnly = true)
@@ -83,6 +114,10 @@ public class AccountService {
         Account account = getAccount(accountNumber);
         account.setActive(false);
         log.info("Status Update: Account deactivated -> {}", accountNumber);
+
+        emailService.sendEmail(account.getEmail(), "VaultBank: Account Deactivated",
+                "Your account " + accountNumber + " has been deactivated. You will not be able to perform any further transactions.");
+
         return accountRepository.save(account);
     }
 
@@ -91,7 +126,26 @@ public class AccountService {
         Account account = getAccount(accountNumber);
         account.setActive(true);
         log.info("Status Update: Account reactivated -> {}", accountNumber);
+
+        emailService.sendEmail(account.getEmail(), "VaultBank: Account Reactivated",
+                "Your account " + accountNumber + " is now active. You can resume your banking operations.");
+
         return accountRepository.save(account);
+    }
+
+    /**
+     * Helper method to check balance health and send alerts.
+     */
+    public void sendBalanceHealthAlert(Account account) {
+        BigDecimal threshold = new BigDecimal("500.00");
+        if (account.getBalance().compareTo(threshold) < 0) {
+            String subject = "CRITICAL: Low Balance Alert";
+            String body = "Dear " + account.getHolderName() + ",\n\n" +
+                    "Your account " + account.getAccountNumber() + " has fallen below the minimum healthy balance of ₹500.00.\n" +
+                    "Current Balance: ₹" + account.getBalance() + "\n\n" +
+                    "Please top up your account to maintain a healthy status and avoid service interruptions.";
+            emailService.sendEmail(account.getEmail(), subject, body);
+        }
     }
 
     public void validateActiveAccount(Account account) {
@@ -108,7 +162,6 @@ public class AccountService {
         int attempts = 0;
 
         do {
-            // Generates a random 10-digit number
             long number = 1000000000L + (long)(random.nextDouble() * 9000000000L);
             accNumber = "ACC" + number;
             attempts++;

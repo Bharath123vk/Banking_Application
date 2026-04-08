@@ -2,6 +2,8 @@ package com.banking.service;
 
 import com.banking.model.Account;
 import com.banking.model.Transaction;
+import com.banking.repository.AccountRepository;
+import com.banking.repository.TransactionRepository;
 import com.itextpdf.kernel.colors.ColorConstants;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
@@ -30,8 +32,10 @@ public class ReportService {
 
     private static final Logger log = LoggerFactory.getLogger(ReportService.class);
 
+    // FIXED: Changed fields to use Services to match your logic usage
     private final AccountService accountService;
     private final TransactionService transactionService;
+    private final AccountRepository accountRepository;
 
     @Value("${banking.reports.output-dir:reports/}")
     private String outputDir;
@@ -39,20 +43,22 @@ public class ReportService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter FILE_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
-    public ReportService(AccountService accountService, TransactionService transactionService) {
+    // FIXED: Constructor now correctly initializes all required fields
+    public ReportService(AccountService accountService,
+                         TransactionService transactionService,
+                         AccountRepository accountRepository) {
         this.accountService = accountService;
         this.transactionService = transactionService;
+        this.accountRepository = accountRepository;
     }
 
     /**
-     * NEW: Generates a CSV string for Google Spreadsheet integration.
-     * This fulfills the mentor requirement for spreadsheet-compatible reporting.
+     * Generates a CSV string for Google Spreadsheet integration.
      */
     public String generateTransactionCsv(String accountNumber) {
         List<Transaction> transactions = transactionService.getAccountTransactions(accountNumber);
         StringBuilder csvBuilder = new StringBuilder();
 
-        // CSV Headers - Google Sheets and Excel recognize these automatically
         csvBuilder.append("Reference Number,Date,Transaction Type,Amount (INR),Status,Closing Balance,Description\n");
 
         if (transactions.isEmpty()) {
@@ -65,7 +71,6 @@ public class ReportService {
                         .append(tx.getAmount().setScale(2, RoundingMode.HALF_UP)).append(",")
                         .append(tx.getTransactionStatus()).append(",")
                         .append(tx.getBalanceAfter().setScale(2, RoundingMode.HALF_UP)).append(",")
-                        // Handle potential commas in descriptions to prevent CSV formatting errors
                         .append(tx.getDescription() != null ? tx.getDescription().replace(",", " ") : "-")
                         .append("\n");
             }
@@ -74,13 +79,11 @@ public class ReportService {
     }
 
     /**
-     * Existing PDF Statement Logic - Kept as requested.
+     * PDF Statement Logic.
      */
     public String generateAccountStatement(String accountNumber) {
         Account account = accountService.getAccount(accountNumber);
-
-List<Transaction> transactions =
-        transactionService.getAccountTransactions(accountNumber);
+        List<Transaction> transactions = transactionService.getAccountTransactions(accountNumber);
 
         ensureDirectoryExists();
         String filename = "Statement_" + accountNumber + "_" + LocalDateTime.now().format(FILE_DATE_FORMATTER) + ".pdf";
@@ -143,10 +146,10 @@ List<Transaction> transactions =
     }
 
     /**
-     * Existing PDF Management Summary Logic - Kept as requested.
+     * PDF Management Summary Logic.
      */
     public String generateBankSummaryReport() {
-        List<Account> allAccounts = accountService.getAllAccounts();
+        List<Account> allAccounts = accountRepository.findAll();
         ensureDirectoryExists();
         String filename = "BankSummary_" + LocalDateTime.now().format(FILE_DATE_FORMATTER) + ".pdf";
         String filepath = outputDir + (outputDir.endsWith("/") ? "" : "/") + filename;
@@ -192,7 +195,6 @@ List<Transaction> transactions =
         File dir = new File(outputDir);
         List<String> reportFiles = new ArrayList<>();
         if (dir.exists() && dir.isDirectory()) {
-            // Updated to list both PDF and CSV for the management dashboard
             File[] files = dir.listFiles((d, name) -> name.endsWith(".pdf") || name.endsWith(".csv"));
             if (files != null) {
                 for (File file : files) reportFiles.add(file.getName());

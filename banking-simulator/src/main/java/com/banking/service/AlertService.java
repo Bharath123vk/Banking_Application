@@ -3,8 +3,8 @@ package com.banking.service;
 import com.banking.model.Account;
 import com.banking.model.Transaction;
 import com.banking.repository.AccountRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -16,9 +16,9 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
-@Slf4j
 public class AlertService {
+
+    private static final Logger log = LoggerFactory.getLogger(AlertService.class);
 
     private final AccountRepository accountRepository;
     private final JavaMailSender mailSender;
@@ -31,6 +31,12 @@ public class AlertService {
 
     @Value("${spring.mail.username}")
     private String fromEmail;
+
+    // MANUAL CONSTRUCTOR - FIXES YOUR ERROR
+    public AlertService(AccountRepository accountRepository, JavaMailSender mailSender) {
+        this.accountRepository = accountRepository;
+        this.mailSender = mailSender;
+    }
 
     public void checkAndAlert(Account account) {
         if (account.getBalance().compareTo(threshold) < 0) {
@@ -52,27 +58,17 @@ public class AlertService {
 
     private void sendLowBalanceAlert(Account account) {
         String subject = "CRITICAL: Low Balance Alert - VaultBank";
-        String message = String.format(
-                "Dear %s,\n\nYour account %s balance is ₹%.2f, which is below our threshold of ₹%.2f.",
-                account.getHolderName(), account.getAccountNumber(), account.getBalance(), threshold);
-
-        if (emailEnabled) {
-            sendMail(account.getEmail(), subject, message);
-        }
+        String message = String.format("Dear %s, Your account %s is below ₹%.2f.",
+                account.getHolderName(), account.getAccountNumber(), threshold);
+        if (emailEnabled) sendMail(account.getEmail(), subject, message);
     }
 
     @Async
     public void sendTransactionAlert(Account account, Transaction transaction) {
         String subject = "VaultBank: Transaction Notification";
-        String message = String.format("Dear %s,\n\nA %s transaction of ₹%.2f has been processed.\nBalance: ₹%.2f",
-                account.getHolderName(),
-                transaction.getTransactionType().name(),
-                transaction.getAmount(),
-                account.getBalance());
-
-        if (emailEnabled) {
-            sendMail(account.getEmail(), subject, message);
-        }
+        String message = String.format("Transaction of ₹%.2f processed. Balance: ₹%.2f",
+                transaction.getAmount(), account.getBalance());
+        if (emailEnabled) sendMail(account.getEmail(), subject, message);
     }
 
     private void sendMail(String to, String subject, String text) {
@@ -83,7 +79,6 @@ public class AlertService {
             mailMessage.setSubject(subject);
             mailMessage.setText(text);
             mailSender.send(mailMessage);
-            log.info("Email sent to {}", to);
         } catch (Exception e) {
             log.error("Mail Error: {}", e.getMessage());
         }

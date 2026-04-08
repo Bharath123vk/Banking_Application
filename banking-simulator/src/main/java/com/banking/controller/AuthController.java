@@ -12,11 +12,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor
 public class AuthController {
 
     private final UserRepository repository;
@@ -24,21 +26,35 @@ public class AuthController {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
 
+    // Manual constructor to fix "variable not initialized" error
+    public AuthController(UserRepository repository,
+                          PasswordEncoder passwordEncoder,
+                          JwtService jwtService,
+                          AuthenticationManager authenticationManager) {
+        this.repository = repository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+        this.authenticationManager = authenticationManager;
+    }
+
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest request) {
         if (repository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email is already in use.");
+            return ResponseEntity.badRequest().build();
         }
-        var user = new User(
-                request.getName(),
-                request.getEmail(),
-                passwordEncoder.encode(request.getPassword()),
-                Role.USER
-        );
+
+        User user = User.builder()
+                .name(request.getName())
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .role(Role.USER)
+                .build();
+
         repository.save(user);
-        var jwtToken = jwtService.generateToken(user);
+        String jwt = jwtService.generateToken(user);
+
         return ResponseEntity.ok(AuthResponse.builder()
-                .token(jwtToken)
+                .token(jwt)
                 .user(user)
                 .build());
     }
@@ -51,11 +67,14 @@ public class AuthController {
                         request.getPassword()
                 )
         );
-        var user = repository.findByEmail(request.getEmail())
+
+        User user = repository.findByEmail(request.getEmail())
                 .orElseThrow();
-        var jwtToken = jwtService.generateToken(user);
+
+        String jwt = jwtService.generateToken(user);
+
         return ResponseEntity.ok(AuthResponse.builder()
-                .token(jwtToken)
+                .token(jwt)
                 .user(user)
                 .build());
     }

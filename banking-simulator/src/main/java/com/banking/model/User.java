@@ -48,6 +48,8 @@ public class User implements UserDetails {
         this.role = role;
     }
 
+    // --- Standard Getters and Setters ---
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -65,6 +67,8 @@ public class User implements UserDetails {
 
     public void setPassword(String password) { this.password = password; }
 
+    // --- UserDetails Implementation Methods ---
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
@@ -77,26 +81,55 @@ public class User implements UserDetails {
 
     @Override
     public String getUsername() {
-        return email; // We use email as the username
+        return email; // Using email as username
     }
 
     @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
+    public boolean isAccountNonExpired() { return true; }
 
     @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
+    public boolean isAccountNonLocked() { return true; }
 
     @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
+    public boolean isCredentialsNonExpired() { return true; }
 
     @Override
-    public boolean isEnabled() {
-        return true;
+    public boolean isEnabled() { return true; }
+
+    // --- Manual Builder Implementation (to fix Lombok/Compilation errors) ---
+
+    public static UserBuilder builder() {
+        return new UserBuilder();
+    }
+
+    public static class UserBuilder {
+        private String name;
+        private String email;
+        private String password;
+        private Role role;
+
+        public UserBuilder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public UserBuilder email(String email) {
+            this.email = email;
+            return this;
+        }
+
+        public UserBuilder password(String password) {
+            this.password = password;
+            return this;
+        }
+
+        public UserBuilder role(Role role) {
+            this.role = role;
+            return this;
+        }
+
+        public User build() {
+            return new User(name, email, password, role);
+        }
     }
 }

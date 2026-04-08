@@ -14,7 +14,11 @@ import com.banking.dto.CreateAccountRequest;
 import com.banking.exception.AccountInactiveException;
 import com.banking.exception.AccountNotFoundException;
 import com.banking.model.Account;
+import com.banking.model.User;
 import com.banking.repository.AccountRepository;
+import com.banking.repository.UserRepository;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 
 @Service
 public class AccountService {
@@ -22,73 +26,62 @@ public class AccountService {
     private static final Logger log = LoggerFactory.getLogger(AccountService.class);
 
     private final AccountRepository accountRepository;
+    private final UserRepository userRepository;
 
-    // Inject the EmailService to handle notifications
     @Autowired
     private EmailService emailService;
 
-    public AccountService(AccountRepository accountRepository) {
+    // Merged Constructor: Includes both repositories needed for Bharath's Security logic
+    public AccountService(AccountRepository accountRepository, UserRepository userRepository) {
         this.accountRepository = accountRepository;
+        this.userRepository = userRepository;
     }
 
-    /**
-     * Persists profile changes and sends a notification about the profile update.
-     */
     @Transactional
     public Account updateAccount(Account account) {
         log.info("Updating profile details for Account: {}", account.getAccountNumber());
         Account updatedAccount = accountRepository.save(account);
 
-        // Notify user about profile changes
         String subject = "VaultBank: Profile Updated";
         String body = "Dear " + updatedAccount.getHolderName() + ",\n\n" +
-                "This is to confirm that your profile details for account " + updatedAccount.getAccountNumber() + " have been successfully updated.\n\n" +
-                "If you did not authorize this change, please contact our support team immediately.";
+                "This is to confirm that your profile details for account " + updatedAccount.getAccountNumber() + " have been successfully updated.";
 
         emailService.sendEmail(updatedAccount.getEmail(), subject, body);
-
         return updatedAccount;
     }
 
-    /**
-     * Creates a new account and sends a Welcome Email to the user.
-     */
     @Transactional
     public Account createAccount(CreateAccountRequest req) {
-        // 1. Check if email is already registered
-        if (accountRepository.existsByEmail(req.getEmail())) {
-            log.warn("Signup attempt failed: Email {} already exists", req.getEmail());
-            throw new RuntimeException("Email address is already registered.");
-        }
+        // Bharath's Security Logic: Get current logged-in user
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String userEmail = principal instanceof UserDetails ?
+                ((UserDetails) principal).getUsername() : principal.toString();
 
-        // 2. Generate unique account number
+        User authenticatedUser = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
+
         String generatedAccountNumber = generateUniqueAccountNumber();
-
-        // 3. Ensure initial balance isn't null
         BigDecimal initialBalance = req.getInitialBalance() != null ? req.getInitialBalance() : BigDecimal.ZERO;
 
-        // 4. Build and Save
+        // Build Account using the Authenticated User's data
         Account account = Account.builder()
                 .accountNumber(generatedAccountNumber)
-                .holderName(req.getHolderName())
-                .email(req.getEmail())
+                .holderName(authenticatedUser.getName())
+                .email(authenticatedUser.getEmail())
                 .accountType(req.getAccountType())
                 .balance(initialBalance)
                 .active(true)
                 .build();
+        account.setUser(authenticatedUser);
 
-        log.info("Creating new account for: {} | Account: {}", req.getHolderName(), generatedAccountNumber);
+        log.info("Creating new account for: {} | Account: {}", authenticatedUser.getName(), generatedAccountNumber);
         Account savedAccount = accountRepository.save(account);
 
-        // 5. Send Welcome Email (The "Wishing" part of the journey)
+        // Your Email Logic: Send Welcome Email
         String subject = "Welcome to VaultBank!";
         String body = "Dear " + savedAccount.getHolderName() + ",\n\n" +
-                "Congratulations! Your digital banking account has been successfully created.\n\n" +
-                "Account Details:\n" +
-                "Account Number: " + savedAccount.getAccountNumber() + "\n" +
-                "Account Type: " + savedAccount.getAccountType() + "\n" +
-                "Opening Balance: ₹" + savedAccount.getBalance() + "\n\n" +
-                "Thank you for choosing VaultBank for your financial journey.";
+                "Congratulations! Your account " + savedAccount.getAccountNumber() + " is now active.\n" +
+                "Opening Balance: ₹" + savedAccount.getBalance();
 
         emailService.sendEmail(savedAccount.getEmail(), subject, body);
 
@@ -102,6 +95,11 @@ public class AccountService {
     }
 
     public List<Account> getAllAccounts() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof UserDetails) {
+            String email = ((UserDetails) principal).getUsername();
+            return accountRepository.findByUserEmail(email);
+        }
         return accountRepository.findAll();
     }
 
@@ -113,11 +111,8 @@ public class AccountService {
     public Account deactivateAccount(String accountNumber) {
         Account account = getAccount(accountNumber);
         account.setActive(false);
-        log.info("Status Update: Account deactivated -> {}", accountNumber);
-
         emailService.sendEmail(account.getEmail(), "VaultBank: Account Deactivated",
-                "Your account " + accountNumber + " has been deactivated. You will not be able to perform any further transactions.");
-
+                "Your account " + accountNumber + " has been deactivated.");
         return accountRepository.save(account);
     }
 
@@ -125,52 +120,32 @@ public class AccountService {
     public Account reactivateAccount(String accountNumber) {
         Account account = getAccount(accountNumber);
         account.setActive(true);
-        log.info("Status Update: Account reactivated -> {}", accountNumber);
-
         emailService.sendEmail(account.getEmail(), "VaultBank: Account Reactivated",
-                "Your account " + accountNumber + " is now active. You can resume your banking operations.");
-
+                "Your account " + accountNumber + " is now active.");
         return accountRepository.save(account);
     }
 
-    /**
-     * Helper method to check balance health and send alerts.
-     */
     public void sendBalanceHealthAlert(Account account) {
         BigDecimal threshold = new BigDecimal("500.00");
         if (account.getBalance().compareTo(threshold) < 0) {
-            String subject = "CRITICAL: Low Balance Alert";
-            String body = "Dear " + account.getHolderName() + ",\n\n" +
-                    "Your account " + account.getAccountNumber() + " has fallen below the minimum healthy balance of ₹500.00.\n" +
-                    "Current Balance: ₹" + account.getBalance() + "\n\n" +
-                    "Please top up your account to maintain a healthy status and avoid service interruptions.";
-            emailService.sendEmail(account.getEmail(), subject, body);
+            emailService.sendEmail(account.getEmail(), "CRITICAL: Low Balance Alert",
+                    "Your balance is below ₹500.00. Current Balance: ₹" + account.getBalance());
         }
     }
 
     public void validateActiveAccount(Account account) {
         if (!account.isActive()) {
-            log.error("Access Denied: Account {} is inactive", account.getAccountNumber());
-            throw new AccountInactiveException("Account is inactive. Please contact support.");
+            throw new AccountInactiveException("Account is inactive.");
         }
     }
 
     private String generateUniqueAccountNumber() {
         Random random = new Random();
         String accNumber;
-        int maxAttempts = 10;
-        int attempts = 0;
-
         do {
             long number = 1000000000L + (long)(random.nextDouble() * 9000000000L);
             accNumber = "ACC" + number;
-            attempts++;
-            if (attempts > maxAttempts) {
-                accNumber = "ACC" + System.currentTimeMillis();
-                break;
-            }
         } while (accountRepository.existsByAccountNumber(accNumber));
-
         return accNumber;
     }
 }

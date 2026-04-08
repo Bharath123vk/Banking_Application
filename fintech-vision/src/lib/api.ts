@@ -38,6 +38,28 @@ export interface SignUpData {
   accountType: "SAVINGS" | "CHECKING" | "CURRENT";
 }
 
+export interface UserProfile {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: UserProfile;
+}
+
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password?: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password?: string;
+}
+
 export interface DepositData {
   accountNumber: string;
   amount: number;
@@ -65,8 +87,15 @@ export interface UpdateProfileData {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = localStorage.getItem("token");
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: { ...headers, ...(options?.headers as Record<string, string>) },
     ...options,
   });
   if (!res.ok) {
@@ -77,6 +106,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Auth
+  registerUser: (data: RegisterRequest) => request<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
+  loginUser: (data: LoginRequest) => request<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(data) }),
+
   // Accounts
   getAccounts: () => request<Account[]>("/accounts"),
   getAccount: (accountNumber: string) => request<Account>(`/accounts/${accountNumber}`),

@@ -26,3 +26,4 @@
 .idea/
 .DS_Store
 *.sw?
+src/test/resources/application-test.properties

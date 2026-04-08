@@ -1,6 +1,7 @@
 package com.banking.service;
 
 import com.banking.model.Account;
+import com.banking.model.Transaction;
 import com.banking.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -30,9 +32,6 @@ public class AlertService {
     @Value("${spring.mail.username}")
     private String fromEmail;
 
-    /**
-     * Real-time check called after transactions.
-     */
     public void checkAndAlert(Account account) {
         if (account.getBalance().compareTo(threshold) < 0) {
             log.info("Low balance detected for account: {}", account.getAccountNumber());
@@ -40,45 +39,53 @@ public class AlertService {
         }
     }
 
-    /**
-     * Hourly background scan to remind users who still have low balances.
-     */
     @Scheduled(fixedRate = 3600000)
     public void scanAllAccounts() {
         log.info("Starting hourly scan for low balance accounts...");
-        // Ensure your AccountRepository has this custom query or use findAll and filter
         List<Account> allAccounts = accountRepository.findAll();
-        long count = 0;
         for (Account account : allAccounts) {
             if (account.isActive() && account.getBalance().compareTo(threshold) < 0) {
                 sendLowBalanceAlert(account);
-                count++;
             }
         }
-        log.info("Completed hourly scan. Sent {} alerts.", count);
     }
 
     private void sendLowBalanceAlert(Account account) {
         String subject = "CRITICAL: Low Balance Alert - VaultBank";
         String message = String.format(
-                "Dear %s,\n\nYour account %s balance is ₹%.2f, which is below our healthy threshold of ₹%.2f.\n\n" +
-                        "Please deposit funds soon to ensure uninterrupted service.\n\nThank you,\nVaultBank Security Team",
+                "Dear %s,\n\nYour account %s balance is ₹%.2f, which is below our threshold of ₹%.2f.",
                 account.getHolderName(), account.getAccountNumber(), account.getBalance(), threshold);
 
         if (emailEnabled) {
-            try {
-                SimpleMailMessage mailMessage = new SimpleMailMessage();
-                mailMessage.setFrom(fromEmail);
-                mailMessage.setTo(account.getEmail());
-                mailMessage.setSubject(subject);
-                mailMessage.setText(message);
-                mailSender.send(mailMessage);
-                log.info("Email alert sent to {} for account {}", account.getEmail(), account.getAccountNumber());
-            } catch (Exception e) {
-                log.error("Failed to send email alert to {}: {}", account.getEmail(), e.getMessage());
-            }
-        } else {
-            log.warn("EMAIL DISABLED - CONSOLE LOG ONLY: {}", message);
+            sendMail(account.getEmail(), subject, message);
+        }
+    }
+
+    @Async
+    public void sendTransactionAlert(Account account, Transaction transaction) {
+        String subject = "VaultBank: Transaction Notification";
+        String message = String.format("Dear %s,\n\nA %s transaction of ₹%.2f has been processed.\nBalance: ₹%.2f",
+                account.getHolderName(),
+                transaction.getTransactionType().name(),
+                transaction.getAmount(),
+                account.getBalance());
+
+        if (emailEnabled) {
+            sendMail(account.getEmail(), subject, message);
+        }
+    }
+
+    private void sendMail(String to, String subject, String text) {
+        try {
+            SimpleMailMessage mailMessage = new SimpleMailMessage();
+            mailMessage.setFrom(fromEmail);
+            mailMessage.setTo(to);
+            mailMessage.setSubject(subject);
+            mailMessage.setText(text);
+            mailSender.send(mailMessage);
+            log.info("Email sent to {}", to);
+        } catch (Exception e) {
+            log.error("Mail Error: {}", e.getMessage());
         }
     }
 }

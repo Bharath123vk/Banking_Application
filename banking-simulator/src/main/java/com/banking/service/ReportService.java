@@ -78,7 +78,9 @@ public class ReportService {
      */
     public String generateAccountStatement(String accountNumber) {
         Account account = accountService.getAccount(accountNumber);
-        List<Transaction> transactions = transactionService.getAccountTransactions(accountNumber);
+
+List<Transaction> transactions =
+        transactionService.getAccountTransactions(accountNumber);
 
         ensureDirectoryExists();
         String filename = "Statement_" + accountNumber + "_" + LocalDateTime.now().format(FILE_DATE_FORMATTER) + ".pdf";

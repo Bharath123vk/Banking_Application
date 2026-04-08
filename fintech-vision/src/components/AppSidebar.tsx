@@ -7,6 +7,7 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -21,7 +22,7 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, account } = useAuth();
+  const { logout, account, accounts, switchAccount } = useAuth();
 
   const handleLogout = () => { logout(); navigate("/"); };
 
@@ -54,9 +55,38 @@ export function AppSidebar() {
       <SidebarFooter className="p-3">
         {!collapsed && account && (
           <div className="mb-3 rounded-lg bg-sidebar-accent/50 p-3">
-            <p className="text-xs text-sidebar-foreground/60">Logged in as</p>
-            <p className="text-sm font-medium text-sidebar-foreground truncate">{account.holderName}</p>
-            <p className="text-xs text-sidebar-primary font-mono">{account.accountNumber}</p>
+            <p className="text-xs text-sidebar-foreground/60 mb-2">Logged in as</p>
+            {accounts && accounts.length > 1 ? (
+              <Select
+                value={account.accountNumber}
+                onValueChange={(val) => {
+                  const selected = accounts.find((a) => a.accountNumber === val);
+                  if (selected) switchAccount(selected);
+                }}
+              >
+                <SelectTrigger className="w-full bg-background border-border h-auto py-2 px-3">
+                  <div className="flex flex-col items-start text-left truncate overflow-hidden w-full">
+                    <span className="text-sm font-medium text-sidebar-foreground truncate w-full">{account.holderName}</span>
+                    <span className="text-[10px] text-sidebar-primary font-mono mt-0.5 truncate w-full">{account.accountNumber} &bull; {account.accountType}</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((acc) => (
+                    <SelectItem key={acc.accountNumber} value={acc.accountNumber}>
+                      <div className="flex flex-col items-start py-1">
+                        <span className="text-sm font-medium">{acc.holderName}</span>
+                        <span className="text-xs text-muted-foreground">{acc.accountNumber} &bull; {acc.accountType}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div>
+                <p className="text-sm font-medium text-sidebar-foreground truncate">{account.holderName}</p>
+                <p className="text-xs text-sidebar-primary font-mono">{account.accountNumber} &bull; {account.accountType}</p>
+              </div>
+            )}
           </div>
         )}
         <Button variant="ghost" className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50" onClick={handleLogout}>

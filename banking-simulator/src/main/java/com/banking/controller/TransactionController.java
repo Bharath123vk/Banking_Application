@@ -7,6 +7,9 @@ import com.banking.service.TransactionService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -49,12 +52,19 @@ public class TransactionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Transaction>> getAllTransactions() {
-        return ResponseEntity.ok(transactionService.getAllTransactions());
+    public ResponseEntity<Page<Transaction>> getAllTransactions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(transactionService.getAllTransactions(pageable));
     }
 
     @GetMapping("/account/{accountNumber}")
-    public ResponseEntity<List<Transaction>> getAccountTransactions(@PathVariable String accountNumber) {
+    public ResponseEntity<List<Transaction>> getAccountTransactions(
+            @PathVariable String accountNumber,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+       // Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(transactionService.getAccountTransactions(accountNumber));
     }
 }

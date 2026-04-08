@@ -8,7 +8,7 @@ import { FileText, Download, RefreshCw, Loader2, ShieldCheck, AlertCircle, Table
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Reports() {
-  const { account } = useAuth();
+  const { account, token } = useAuth();
   const [generating, setGenerating] = useState(false);
 
   const { data: reports = [], refetch, isLoading } = useQuery({
@@ -45,7 +45,8 @@ export default function Reports() {
     if (!account) return;
     setGenerating(true);
     try {
-      const url = `http://localhost:8081/api/reports/export-csv/${account.accountNumber}`;
+      // Updated to include the auth token for secure download
+      const url = `http://localhost:8081/api/reports/export-csv/${account.accountNumber}?token=${token}`;
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", `VaultBank_Statement_${account.accountNumber}.csv`);
@@ -82,7 +83,8 @@ export default function Reports() {
       return;
     }
 
-    const url = `http://localhost:8081/api/reports/${filename}?owner=${account.accountNumber}`;
+    // Integrated Bharath's token requirement to avoid "Unauthorized" errors
+    const url = `http://localhost:8081/api/reports/${filename}?owner=${account.accountNumber}&token=${token}`;
     
     const link = document.createElement("a");
     link.href = url;

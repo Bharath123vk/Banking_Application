@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -28,12 +30,11 @@ public class TransactionService {
     private final AccountService accountService;
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
-    private final AlertService alertService; // FIXED: Added missing AlertService field
+    private final AlertService alertService;
 
     @Autowired
     private EmailService emailService;
 
-    // FIXED: Updated constructor to properly inject all required services
     public TransactionService(AccountService accountService,
                               AccountRepository accountRepository,
                               TransactionRepository transactionRepository,
@@ -60,16 +61,17 @@ public class TransactionService {
         Transaction savedTx = transactionRepository.save(transaction);
         log.info("Deposit successful for account {}", accountNumber);
 
-        // Send Real-Time Email Notification
+        // Your Real-Time Email Logic
         String subject = "VaultBank: Deposit Confirmation";
         String body = String.format("Dear %s,\n\nYour account %s has been credited with ₹%.2f.\n" +
                         "Transaction Reference: %s\n" +
-                        "New Balance: ₹%.2f\n\nThank you for banking with VaultBank.",
+                        "New Balance: ₹%.2f",
                 account.getHolderName(), accountNumber, amount, savedTx.getReferenceNumber(), balanceAfter);
         emailService.sendEmail(account.getEmail(), subject, body);
 
-        // Use AlertService to check account health
+        // Bharath's Alert logic
         alertService.checkAndAlert(account);
+        alertService.sendTransactionAlert(account, savedTx);
 
         return savedTx;
     }
@@ -96,16 +98,16 @@ public class TransactionService {
         Transaction savedTx = transactionRepository.save(transaction);
         log.info("Withdrawal successful for account {}", accountNumber);
 
-        // Send Real-Time Email Notification
+        // Your Real-Time Email Logic
         String subject = "VaultBank: Transaction Alert (Debit)";
         String body = String.format("Dear %s,\n\nYour account %s has been debited by ₹%.2f.\n" +
-                        "Transaction Reference: %s\n" +
-                        "Remaining Balance: ₹%.2f\n\nIf this was not you, please block your account immediately.",
-                account.getHolderName(), accountNumber, amount, savedTx.getReferenceNumber(), balanceAfter);
+                        "Remaining Balance: ₹%.2f",
+                account.getHolderName(), accountNumber, amount, balanceAfter);
         emailService.sendEmail(account.getEmail(), subject, body);
 
-        // Use AlertService to trigger low balance warnings
+        // Bharath's Alert logic
         alertService.checkAndAlert(account);
+        alertService.sendTransactionAlert(account, savedTx);
 
         return savedTx;
     }
@@ -140,12 +142,12 @@ public class TransactionService {
                 destinationAccountNumber);
 
         List<Transaction> recordedTransactions = new ArrayList<>();
-        recordedTransactions.add(transactionRepository.save(outTx));
+        Transaction savedOutTx = transactionRepository.save(outTx);
+        recordedTransactions.add(savedOutTx);
 
-        // Send Email Alert to Sender
+        // Email to Sender
         emailService.sendEmail(sourceAccount.getEmail(), "VaultBank: Fund Transfer Initiated",
-                String.format("Dear %s,\n\nYou have successfully transferred ₹%.2f to account %s.\nNew Balance: ₹%.2f",
-                        sourceAccount.getHolderName(), amount, destinationAccountNumber, sourceBalanceAfter));
+                String.format("You transferred ₹%.2f to %s.", amount, destinationAccountNumber));
 
         Optional<Account> destinationAccountOpt = accountRepository.findByAccountNumber(destinationAccountNumber);
 
@@ -161,25 +163,26 @@ public class TransactionService {
                     "Received from " + sourceAccountNumber,
                     sourceAccountNumber);
 
-            recordedTransactions.add(transactionRepository.save(inTx));
+            Transaction savedInTx = transactionRepository.save(inTx);
+            recordedTransactions.add(savedInTx);
 
-            // Send Email Alert to Recipient
+            // Email to Recipient
             emailService.sendEmail(destAccount.getEmail(), "VaultBank: Funds Received",
-                    String.format("Dear %s,\n\nYou have received ₹%.2f from account %s.\nNew Balance: ₹%.2f",
-                            destAccount.getHolderName(), amount, sourceAccountNumber, destBalanceAfter));
+                    String.format("You received ₹%.2f from %s.", amount, sourceAccountNumber));
 
-            // Check recipient health
             alertService.checkAndAlert(destAccount);
+            alertService.sendTransactionAlert(destAccount, savedInTx);
         }
 
-        // Check sender balance health
         alertService.checkAndAlert(sourceAccount);
+        alertService.sendTransactionAlert(sourceAccount, savedOutTx);
 
         return recordedTransactions;
     }
 
-    public List<Transaction> getAllTransactions() {
-        return transactionRepository.findAll();
+    // Kept Bharath's Pagination Support
+    public Page<Transaction> getAllTransactions(Pageable pageable) {
+        return transactionRepository.findAll(pageable);
     }
 
     public List<Transaction> getAccountTransactions(String accountNumber) {
